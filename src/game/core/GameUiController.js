@@ -13,9 +13,10 @@ export class GameUiController {
       }
       if (game.input.isMobileTouch) {
         game.input.locked = true;
-      } else {
+      } else if (!game.freeCam) {
         game.renderer.domElement.requestPointerLock();
       }
+      game.paused = false;
       game.messageOverlay.style.display = 'none';
     };
 
@@ -74,7 +75,7 @@ export class GameUiController {
     game.hud.ammo.textContent = game.player.ammo;
     game.hud.kills.textContent = game.player.kills;
     game.hud.score.textContent = game.player.score | 0;
-    game.hud.streak.textContent = game.player.streak | 0;
+    game.hud.streak.textContent = game.enemyManager.enemies.length | 0;
     game.hud.stage.textContent = game.waves.stage === 1
       ? `Breach - Wave ${game.waves.wave}`
       : game.waves.stage === 2

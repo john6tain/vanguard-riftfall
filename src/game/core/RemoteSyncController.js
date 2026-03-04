@@ -99,6 +99,16 @@ export class RemoteSyncController {
     const life = Number.isFinite(data.life) ? data.life : 1.2;
     const color = Number.isFinite(data.color) ? data.color : 0xffffff;
 
+    if (data.source === 'enemy' && data.shotId) {
+      game._seenEnemyShots.set(data.shotId, performance.now());
+      if (game._seenEnemyShots.size > 200) {
+        const now = performance.now();
+        for (const [id, ts] of game._seenEnemyShots.entries()) {
+          if (now - ts > 4000) game._seenEnemyShots.delete(id);
+        }
+      }
+    }
+
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(size, 8, 8),
       new THREE.MeshBasicMaterial({ color }),
@@ -201,8 +211,19 @@ export class RemoteSyncController {
     };
 
     const delayMs = Number(data?.delayMs || 0);
-    if (data?.kind === 'projectile' && delayMs > 0) {
-      setTimeout(apply, Math.min(1200, delayMs));
+    if (data?.kind === 'projectile') {
+      const shotId = data?.shotId;
+      const applyIfSeen = (attempt = 0) => {
+        const seen = shotId ? game._seenEnemyShots.has(shotId) : true;
+        if (seen) {
+          apply();
+          return;
+        }
+        if (attempt >= 3) return; // drop unpaired hit
+        setTimeout(() => applyIfSeen(attempt + 1), 80);
+      };
+
+      setTimeout(() => applyIfSeen(0), Math.min(1200, Math.max(0, delayMs)));
       return;
     }
 

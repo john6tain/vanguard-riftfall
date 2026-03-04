@@ -96,15 +96,18 @@ export class WorldBuilder {
 
   buildArena(scene) {
     const obstacles = [];
-    const addBox = (width, height, depth, x, y, z, color = 0x1a2a42) => {
+    const addBox = (width, height, depth, x, y, z, color = 0x1a2a42, editable = false, rotY = 0) => {
       const obstacleMesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), new THREE.MeshStandardMaterial({ color }));
       obstacleMesh.position.set(x, y, z);
+      obstacleMesh.rotation.y = rotY;
       obstacleMesh.userData.size = { w: width, d: depth, h: height };
+      obstacleMesh.userData.editable = editable;
+      obstacleMesh.userData.rotY = rotY;
       scene.add(obstacleMesh);
       obstacles.push(obstacleMesh);
     };
 
-    const mapSize = 180;
+    const mapSize = 96;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(mapSize, mapSize),
       new THREE.MeshStandardMaterial({ color: 0x11151d, roughness: 0.95, metalness: 0.04 }),
@@ -114,8 +117,8 @@ export class WorldBuilder {
     scene.add(new THREE.GridHelper(mapSize, 45, 0x1b2a44, 0x13233a));
 
     const wallColor = 0x172233;
-    const h = 12;
-    const t = 3;
+    const h = 6;
+    const t = 1.8;
     const e = mapSize / 2;
 
     // Outer walls
@@ -126,27 +129,31 @@ export class WorldBuilder {
 
     // Corridor v2: long lanes with staggered blockers (maze-like, less arena)
     // Vertical spine walls with alternating gaps
-    addBox(t, h, 60, -20, h / 2, -45, wallColor);
-    addBox(t, h, 60, -20, h / 2, 45, wallColor);
-    addBox(t, h, 50, 20, h / 2, -35, wallColor);
-    addBox(t, h, 50, 20, h / 2, 55, wallColor);
+    addBox(t, h, 44, -14, h / 2, -26, wallColor);
+    addBox(t, h, 44, -14, h / 2, 26, wallColor);
+    addBox(t, h, 38, 14, h / 2, -20, wallColor);
+    addBox(t, h, 38, 14, h / 2, 32, wallColor);
 
-    // Horizontal lane walls with offset cuts
-    addBox(70, h, t, -45, h / 2, -20, wallColor);
-    addBox(70, h, t, 45, h / 2, -20, wallColor);
-    addBox(65, h, t, -40, h / 2, 20, wallColor);
-    addBox(65, h, t, 50, h / 2, 20, wallColor);
+    // Horizontal lane walls with tighter offset cuts
+    addBox(48, h, t, -26, h / 2, -12, wallColor);
+    addBox(48, h, t, 26, h / 2, -12, wallColor);
+    addBox(44, h, t, -24, h / 2, 12, wallColor);
+    addBox(44, h, t, 30, h / 2, 12, wallColor);
 
-    // Chokepoint blockers
-    addBox(10, 7, 10, -55, 3.5, 0, 0x22354a);
-    addBox(10, 7, 10, 55, 3.5, -5, 0x22354a);
-    addBox(9, 7, 9, 0, 3.5, -55, 0x22354a);
-    addBox(9, 7, 9, 5, 3.5, 55, 0x22354a);
-
-    // Mid-lane cover
-    addBox(8, 6, 8, -5, 3, -5, 0x22354a);
-    addBox(8, 6, 8, 35, 3, 35, 0x22354a);
-    addBox(8, 6, 8, -35, 3, 35, 0x22354a);
+    // Optional custom map additions saved from free-cam editor.
+    try {
+      const raw = localStorage.getItem('riftfall.customMap');
+      if (raw) {
+        const custom = JSON.parse(raw);
+        if (Array.isArray(custom)) {
+          for (const b of custom) {
+            if (!Number.isFinite(b?.w) || !Number.isFinite(b?.h) || !Number.isFinite(b?.d)) continue;
+            if (!Number.isFinite(b?.x) || !Number.isFinite(b?.y) || !Number.isFinite(b?.z)) continue;
+            addBox(b.w, b.h, b.d, b.x, b.y, b.z, b.color ?? 0x22354a, true, Number(b.rotY || 0));
+          }
+        }
+      }
+    } catch {}
 
     return { obstacles };
   }

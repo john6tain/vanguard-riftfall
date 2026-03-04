@@ -51,20 +51,38 @@ export class EnemyManager {
         this.enemies.push(this.factory.createEnemy(type, spawnPosition));
     }
 
+    isNearObstacle(x, z, pad = 4.5) {
+        for (const obstacle of this.obstacles) {
+            const s = obstacle.userData?.size;
+            if (!s) continue;
+            const minX = obstacle.position.x - s.w / 2 - pad;
+            const maxX = obstacle.position.x + s.w / 2 + pad;
+            const minZ = obstacle.position.z - s.d / 2 - pad;
+            const maxZ = obstacle.position.z + s.d / 2 + pad;
+            if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) return true;
+        }
+        return false;
+    }
+
+    randomFarSpawnSafe() {
+        for (let i = 0; i < 40; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 26 + Math.random() * 10;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            if (!this.isNearObstacle(x, z, 5)) return { x, z };
+        }
+        return { x: 0, z: -65 };
+    }
+
     startWave(wave, stage) {
         const stageMultiplier = stage === 1 ? 1.0 : stage === 2 ? 1.2 : 1.4;
-        const enemyCount = Math.max(3, Math.floor((3 + wave) * stageMultiplier));
-
-        const randomFarSpawn = () => {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 58 + Math.random() * 20;
-            return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius };
-        };
+        const enemyCount = Math.max(6, Math.floor((3 + wave) * stageMultiplier * 2));
 
         for (let i = 0; i < enemyCount; i++) {
             const r = Math.random();
             const type = r < 0.2 ? 'green' : r < 0.45 ? 'blue' : 'red';
-            this.spawn(type, randomFarSpawn());
+            this.spawn(type, this.randomFarSpawnSafe());
         }
     }
 

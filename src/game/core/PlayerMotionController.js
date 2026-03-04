@@ -20,6 +20,32 @@ export class PlayerMotionController {
 
   updateMovement(deltaTime) {
     const game = this.game;
+
+    if (game.freeCam) {
+      const boost = game.input.keys.shift ? 2.2 : 1;
+      const moveSpeed = game.player.speed * 1.35 * boost;
+      const forwardDirection = new THREE.Vector3();
+      game.camera.getWorldDirection(forwardDirection);
+      forwardDirection.normalize();
+      const rightDirection = new THREE.Vector3().crossVectors(forwardDirection, new THREE.Vector3(0, 1, 0)).normalize();
+      const upDirection = new THREE.Vector3(0, 1, 0);
+      const moveDirection = new THREE.Vector3();
+
+      if (game.input.keys.w || game.input.mobileMove.y < -0.15) moveDirection.add(forwardDirection);
+      if (game.input.keys.s || game.input.mobileMove.y > 0.15) moveDirection.sub(forwardDirection);
+      if (game.input.keys.d || game.input.mobileMove.x > 0.15) moveDirection.add(rightDirection);
+      if (game.input.keys.a || game.input.mobileMove.x < -0.15) moveDirection.sub(rightDirection);
+      if (game.input.keys[' '] || game.input.keys.space) moveDirection.add(upDirection);
+      if (game.input.keys.control || game.input.keys.c) moveDirection.sub(upDirection);
+
+      if (moveDirection.lengthSq() > 0) {
+        game.camera.position.add(moveDirection.normalize().multiplyScalar(moveSpeed * deltaTime));
+      }
+
+      game.player.fireCooldown = Math.max(0, game.player.fireCooldown - deltaTime);
+      return;
+    }
+
     const sprintMultiplier = game.input.keys.shift ? 1.18 : 1;
     const moveSpeed = game.player.speed * sprintMultiplier;
 

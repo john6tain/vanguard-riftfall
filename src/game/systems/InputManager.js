@@ -7,6 +7,10 @@ export class InputManager {
     this.yaw = 0;
     this.pitch = 0;
     this.locked = false;
+    this.freeCamMouseMode = false;
+    this.freeCamLook = false;
+    this._lastMouseX = null;
+    this._lastMouseY = null;
 
     this.mobileMove = { x: 0, y: 0 };
     this.mobileLook = { x: 0, y: 0 };
@@ -26,14 +30,41 @@ export class InputManager {
     });
     addEventListener('keyup', (e) => (this.keys[e.key.toLowerCase()] = false));
     addEventListener('mousedown', (e) => {
+      if (this.freeCamMouseMode) {
+        if (e.button === 1) {
+          e.preventDefault();
+          this.freeCamLook = true;
+          return;
+        }
+      }
       if (e.button === 0) this.mouseDown = true;
     });
-    addEventListener('mouseup', () => (this.mouseDown = false));
+    addEventListener('mouseup', (e) => {
+      if (this.freeCamMouseMode && e.button === 1) {
+        this.freeCamLook = false;
+        return;
+      }
+      this.mouseDown = false;
+    });
 
     document.addEventListener('mousemove', (e) => {
-      if (!this.locked || this.isMobileTouch) return;
-      this.yaw -= e.movementX * 0.0018;
-      this.pitch -= e.movementY * 0.0016;
+      if (this.isMobileTouch) return;
+
+      let activeLook = this.locked;
+      if (this.freeCamMouseMode) activeLook = this.freeCamLook;
+      if (!activeLook) {
+        this._lastMouseX = e.clientX;
+        this._lastMouseY = e.clientY;
+        return;
+      }
+
+      const dx = Number.isFinite(e.movementX) ? e.movementX : (this._lastMouseX == null ? 0 : e.clientX - this._lastMouseX);
+      const dy = Number.isFinite(e.movementY) ? e.movementY : (this._lastMouseY == null ? 0 : e.clientY - this._lastMouseY);
+      this._lastMouseX = e.clientX;
+      this._lastMouseY = e.clientY;
+
+      this.yaw -= dx * 0.0018;
+      this.pitch -= dy * 0.0016;
       this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch));
     });
 
@@ -43,6 +74,18 @@ export class InputManager {
     });
 
     this.setupMobileControls();
+  }
+
+  setFreeCamMouseMode(enabled) {
+    this.freeCamMouseMode = !!enabled;
+    this.freeCamLook = false;
+    if (enabled) {
+      this.locked = false;
+      document.addEventListener('contextmenu', (e) => {
+        if (this.freeCamMouseMode) e.preventDefault();
+      });
+      if (document.pointerLockElement) document.exitPointerLock();
+    }
   }
 
   setupMobileControls() {

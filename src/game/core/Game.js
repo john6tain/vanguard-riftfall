@@ -13,6 +13,7 @@ import {NetworkTickController} from './NetworkTickController.js';
 import {ObjectiveController} from './ObjectiveController.js';
 import {PlayerStateController} from './PlayerStateController.js';
 import {WorldBuilder} from './WorldBuilder.js';
+import {MapEditorController} from './MapEditorController.js';
 
 export class Game {
     constructor(netClient = null) {
@@ -37,6 +38,7 @@ export class Game {
 
         this.player = new Player(this.camera);
         this.input = new InputManager(this.player, this.renderer.domElement);
+        if (this.freeCam) this.input.setFreeCamMouseMode(true);
         this.collision = new CollisionSystem(this.obstacles);
         this.enemyManager = new EnemyManager(this.scene, this.obstacles, this.collision);
         this.waves = new WaveSystem(this.enemyManager, this.extractRing);
@@ -67,10 +69,15 @@ export class Game {
         this._lastNetStateAt = 0;
         this._lastEnemySnapAt = 0;
         this._sentMissionFailed = false;
+        this._seenEnemyShots = new Map();
         this.gameOver = false;
         this.finished = false;
         this.win = false;
-        this.paused = false;
+        // Keep game paused until Deploy is pressed.
+        this.paused = true;
+        const params = new URLSearchParams(globalThis.location?.search || '');
+        this.freeCam = params.get('debugPaths') === '1';
+
         this.remoteSync = new RemoteSyncController(this);
         this.ui = new GameUiController(this);
         this.motion = new PlayerMotionController(this);
@@ -78,7 +85,15 @@ export class Game {
         this.networkTick = new NetworkTickController(this);
         this.objectives = new ObjectiveController(this);
         this.playerState = new PlayerStateController(this);
+        this.mapEditor = new MapEditorController(this);
         this.ui.bindStartOverlay();
+        if (this.freeCam) {
+            const tip = document.getElementById('tip');
+            if (tip) {
+                tip.textContent = 'FREECAM/MAP EDITOR: MMB hold look OR M toggle look | WASD move | Shift boost | Space up | C/Ctrl down | ←/→ rotate | ↑/↓ resize | E place | Z delete-last | X delete-target | P save';
+            }
+            this.mapEditor.init();
+        }
 
         this.clock = new THREE.Clock();
         this.setNetClient(this.netClient);
@@ -143,7 +158,7 @@ export class Game {
 
         if (!this.gameOver) {
             const isJoinClient = !!(this.netClient?.connected && !this.netClient.isHost);
-            if (this.input.locked && this.input.mouseDown) this.shoot();
+            if (!this.freeCam && this.input.locked && this.input.mouseDown) this.shoot();
 
             this.motion.updateCameraRotation();
 
@@ -167,7 +182,7 @@ export class Game {
                 ];
                 this.enemyManager.update(dt, this.player, this.camera, targetActors, this.netClient);
             }
-            this.motion.resolvePlayerEnemyCollision();
+            if (!this.freeCam) this.motion.resolvePlayerEnemyCollision();
 
             if (!isJoinClient) this.waves.update(dt, this.enemyManager.enemies.length);
             this.networkTick.sendEnemySnapshotIfNeeded(now);
@@ -176,7 +191,7 @@ export class Game {
 
             this.combat.updateBullets(dt, isJoinClient);
             this.combat.updateHealDrops(dt);
-            this.playerState.updateSurvival(dt);
+            if (!this.freeCam) this.playerState.updateSurvival(dt);
 
             this.ui.updateHud();
         }

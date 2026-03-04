@@ -4,17 +4,29 @@ export class EnemyAiSystem {
   constructor(scene, collision) {
     this.scene = scene;
     this.collision = collision;
+    this.debugPathLines = new Map();
+    const params = new URLSearchParams(globalThis.location?.search || '');
+    this.showPathDebug = params.get('debugPaths') === '1';
   }
 
   updateEnemies(deltaTime, enemies, player, camera, enemyShots, targetActors = null, netClient = null, pointHitsObstacle = null) {
     for (const enemy of enemies) {
       const target = this.selectTarget(enemy, player, camera, targetActors);
+      if (this.showPathDebug) this.updatePathDebug(enemy, target, pointHitsObstacle);
       const deltaX = target.x - enemy.mesh.position.x;
       const deltaZ = target.z - enemy.mesh.position.z;
       const distanceToPlayer = Math.hypot(deltaX, deltaZ) || 1;
 
       if (distanceToPlayer > 0.35) {
-        this.moveTowardWithPathfind(enemy, deltaX / distanceToPlayer, deltaZ / distanceToPlayer, deltaTime, pointHitsObstacle);
+        this.moveTowardWithPathfind(
+          enemy,
+          deltaX / distanceToPlayer,
+          deltaZ / distanceToPlayer,
+          deltaTime,
+          pointHitsObstacle,
+          target.x,
+          target.z,
+        );
       }
 
       const isMoving = distanceToPlayer > 0.35;
@@ -28,6 +40,7 @@ export class EnemyAiSystem {
         if (target.isLocal) {
           this.spawnEnemyProjectile(enemy, target, enemyShots);
           if (netClient?.isHost) {
+            const shotId = `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
             const muzzleY = (enemy.mesh.position.y || 0) + 1.25;
             const aimX = target.x - enemy.mesh.position.x;
             const aimY = ((target.y ?? 1.7) + 0.2) - muzzleY;
@@ -35,6 +48,7 @@ export class EnemyAiSystem {
             const aimLen = Math.hypot(aimX, aimY, aimZ) || 1;
             netClient.sendShoot({
               source: 'enemy',
+              shotId,
               x: enemy.mesh.position.x,
               y: muzzleY,
               z: enemy.mesh.position.z,
@@ -70,8 +84,10 @@ export class EnemyAiSystem {
           }
           if (blocked) continue;
 
+          const shotId = `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
           netClient.sendShoot({
             source: 'enemy',
+            shotId,
             x: enemy.mesh.position.x,
             y: muzzleY,
             z: enemy.mesh.position.z,
@@ -88,6 +104,7 @@ export class EnemyAiSystem {
             targetId: target.id,
             dmg: enemy.attackDamage,
             kind: 'projectile',
+            shotId,
             delayMs: Math.min(900, Math.max(90, Math.round((aimLen / 24) * 1000))),
           });
           enemy.shootCooldownRemaining = enemy.shootCooldown + Math.random() * 0.35;
@@ -96,33 +113,111 @@ export class EnemyAiSystem {
     }
 
     this.resolveEnemySeparation(enemies);
+
+    const aliveIds = new Set(enemies.map((e) => e.id));
+    for (const [id, line] of this.debugPathLines.entries()) {
+      if (aliveIds.has(id)) continue;
+      this.scene.remove(line);
+      this.debugPathLines.delete(id);
+    }
   }
 
-  moveTowardWithPathfind(enemy, dirX, dirZ, deltaTime, pointHitsObstacle) {
+  updatePathDebug(enemy, target, pointHitsObstacle) {
+    if (!enemy?.id || !target) return;
+
+    let line = this.debugPathLines.get(enemy.id);
+    if (!line) {
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.75 });
+      line = new THREE.Line(geometry, material);
+      this.scene.add(line);
+      this.debugPathLines.set(enemy.id, line);
+    }
+
+    // Ground-level predicted path using same steering heuristic as movement.
+    const points = [];
+    const p = new THREE.Vector3(enemy.mesh.position.x, 0.12, enemy.mesh.position.z);
+    points.push(p.clone());
+
+    const step = 1.6;
+    for (let i = 0; i < 20; i++) {
+      const dx = target.x - p.x;
+      const dz = target.z - p.z;
+      const d = Math.hypot(dx, dz) || 1;
+      if (d < 1.2) break;
+
+      let dirX = dx / d;
+      let dirZ = dz / d;
+
+      const canStep = (vx, vz) => {
+        const nx = p.x + vx * step;
+        const nz = p.z + vz * step;
+        return !pointHitsObstacle || !pointHitsObstacle(nx, nz);
+      };
+
+      if (!canStep(dirX, dirZ)) {
+        const angles = [0.55, -0.55, 1.0, -1.0];
+        let found = false;
+        for (const a of angles) {
+          const c = Math.cos(a), s = Math.sin(a);
+          const rx = dirX * c - dirZ * s;
+          const rz = dirX * s + dirZ * c;
+          if (canStep(rx, rz)) {
+            dirX = rx;
+            dirZ = rz;
+            found = true;
+            break;
+          }
+        }
+        if (!found) break;
+      }
+
+      p.x += dirX * step;
+      p.z += dirZ * step;
+      points.push(p.clone());
+    }
+
+    points.push(new THREE.Vector3(target.x, 0.12, target.z));
+    line.geometry.setFromPoints(points);
+    line.geometry.computeBoundingSphere();
+  }
+
+  moveTowardWithPathfind(enemy, dirX, dirZ, deltaTime, pointHitsObstacle, targetX, targetZ) {
     const step = enemy.speed * deltaTime;
     const radius = Math.max(0.7, enemy.r * 0.7);
 
-    const tryStep = (dx, dz) => {
-      const nx = enemy.mesh.position.x + dx * step;
-      const nz = enemy.mesh.position.z + dz * step;
-      if (pointHitsObstacle && pointHitsObstacle(nx, nz)) return false;
-      enemy.mesh.position.x = nx;
-      enemy.mesh.position.z = nz;
-      this.collision.resolveXZ(enemy.mesh.position, radius);
-      return true;
+    const canStep = (dx, dz, scale = 1) => {
+      const nx = enemy.mesh.position.x + dx * step * scale;
+      const nz = enemy.mesh.position.z + dz * step * scale;
+      return !pointHitsObstacle || !pointHitsObstacle(nx, nz);
     };
 
-    // direct path
-    if (tryStep(dirX, dirZ)) return;
+    const candidates = [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4];
+    let best = null;
 
-    // simple steering alternatives (pathfind-lite)
-    const angles = [0.55, -0.55, 1.0, -1.0];
-    for (const a of angles) {
+    for (const a of candidates) {
       const c = Math.cos(a), s = Math.sin(a);
       const rx = dirX * c - dirZ * s;
       const rz = dirX * s + dirZ * c;
-      if (tryStep(rx, rz)) return;
+
+      // Require immediate step + lookahead to reduce wall sliding.
+      if (!canStep(rx, rz, 1)) continue;
+      if (!canStep(rx, rz, 2.2)) continue;
+
+      const nx = enemy.mesh.position.x + rx * step;
+      const nz = enemy.mesh.position.z + rz * step;
+      const d2 = (targetX - nx) ** 2 + (targetZ - nz) ** 2;
+
+      // Favor progress to target and smaller turn angle.
+      const score = d2 + Math.abs(a) * 0.9;
+      if (!best || score < best.score) best = { rx, rz, score };
     }
+
+    if (!best) return;
+
+    enemy.mesh.position.x += best.rx * step;
+    enemy.mesh.position.z += best.rz * step;
+    this.collision.resolveXZ(enemy.mesh.position, radius);
   }
 
   selectTarget(enemy, player, camera, targetActors) {
@@ -251,12 +346,12 @@ export class EnemyAiSystem {
         const deltaX = secondEnemy.mesh.position.x - firstEnemy.mesh.position.x;
         const deltaZ = secondEnemy.mesh.position.z - firstEnemy.mesh.position.z;
         const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-        const minimumDistance = Math.max(0.8, (firstEnemy.r + secondEnemy.r) * 0.55);
+        const minimumDistance = Math.max(1.4, (firstEnemy.r + secondEnemy.r) * 0.95);
         if (distanceSquared > 0 && distanceSquared < minimumDistance * minimumDistance) {
           const distance = Math.sqrt(distanceSquared);
           const normalX = deltaX / distance;
           const normalZ = deltaZ / distance;
-          const pushAmount = (minimumDistance - distance) * 0.5;
+          const pushAmount = (minimumDistance - distance) * 0.75;
           firstEnemy.mesh.position.x -= normalX * pushAmount;
           firstEnemy.mesh.position.z -= normalZ * pushAmount;
           secondEnemy.mesh.position.x += normalX * pushAmount;

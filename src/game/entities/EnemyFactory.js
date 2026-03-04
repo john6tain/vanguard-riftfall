@@ -8,9 +8,9 @@ export class EnemyFactory {
 
   getConfigByType(type) {
     return {
-      red: { hp: 40, speed: 3.2, color: 0xd85a5a, bulletColor: 0xff6b6b, r: 0.9, attackDamage: 8, shootCooldown: 0.9 },
-      blue: { hp: 72, speed: 4.4, color: 0x60a5fa, bulletColor: 0x60a5fa, r: 0.9, attackDamage: 12, shootCooldown: 0.55 },
-      green: { hp: 150, speed: 2.1, color: 0x4ade80, bulletColor: 0x4ade80, r: 0.9, attackDamage: 18, shootCooldown: 1.2 },
+      red: { hp: 40, speed: 4.2, color: 0xd85a5a, bulletColor: 0xff6b6b, r: 0.9, attackDamage: 8, shootCooldown: 0.9 },
+      blue: { hp: 72, speed: 5.6, color: 0x60a5fa, bulletColor: 0x60a5fa, r: 0.9, attackDamage: 12, shootCooldown: 0.55 },
+      green: { hp: 150, speed: 3.0, color: 0x4ade80, bulletColor: 0x4ade80, r: 0.9, attackDamage: 18, shootCooldown: 1.2 },
     }[type];
   }
 
@@ -61,7 +61,7 @@ export class EnemyFactory {
     return enemyGroup;
   }
 
-  createEnemy(type = 'red') {
+  createEnemy(type = 'red', spawnPosition = null) {
     const enemyConfig = this.getConfigByType(type);
     const mesh = this.createFallbackModel(enemyConfig);
 
@@ -78,9 +78,13 @@ export class EnemyFactory {
       mesh.position.y = 1.0;
     }
 
-    const spawnAngle = Math.random() * Math.PI * 2;
-    const spawnRadius = 90 + Math.random() * 55;
-    mesh.position.set(Math.cos(spawnAngle) * spawnRadius, mesh.isMesh ? 0.0 : -0.15, Math.sin(spawnAngle) * spawnRadius);
+    if (spawnPosition && Number.isFinite(spawnPosition.x) && Number.isFinite(spawnPosition.z)) {
+      mesh.position.set(spawnPosition.x, mesh.isMesh ? 0.0 : -0.15, spawnPosition.z);
+    } else {
+      const spawnAngle = Math.random() * Math.PI * 2;
+      const spawnRadius = 90 + Math.random() * 55;
+      mesh.position.set(Math.cos(spawnAngle) * spawnRadius, mesh.isMesh ? 0.0 : -0.15, Math.sin(spawnAngle) * spawnRadius);
+    }
     this.collision.resolveXZ(mesh.position, Math.max(0.7, enemyConfig.r * 0.7));
 
     this.scene.add(mesh);
