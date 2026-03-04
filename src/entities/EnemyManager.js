@@ -65,14 +65,14 @@ export class EnemyManager {
 
         const armL = new THREE.Mesh(new THREE.CapsuleGeometry(cfg.r * 0.08, cfg.r * 0.38, 4, 8), bodyMat);
         const armR = armL.clone();
-        armL.position.set(-cfg.r * 0.28, 1.1, 0);
-        armR.position.set(cfg.r * 0.28, 1.1, 0);
+        armL.position.set(-cfg.r * 0.45, 1.1, 0);
+        armR.position.set(cfg.r * 0.45, 1.1, 0);
         g.add(armL, armR);
 
         const legL = new THREE.Mesh(new THREE.CapsuleGeometry(cfg.r * 0.1, cfg.r * 0.42, 4, 8), bodyMat);
         const legR = legL.clone();
-        legL.position.set(-cfg.r * 0.12, 0.45, 0);
-        legR.position.set(cfg.r * 0.12, 0.45, 0);
+        legL.position.set(-cfg.r * 0.15, 0.25, 0);
+        legR.position.set(cfg.r * 0.15, 0.25, 0);
         g.add(legL, legR);
 
         g.userData.anim = {
@@ -94,7 +94,7 @@ export class EnemyManager {
             green: {hp: 150, spd: 2.1, color: 0x4ade80, bulletColor: 0x4ade80, r: 0.9, atk: 18, cd: 1.2},
         }[type];
 
-        const mesh = this.cloneModelOrNull(type) || this.createFallbackModel(cfg);
+        const mesh =  this.createFallbackModel(cfg);
         mesh.traverse?.((n) => {
             if (!n.isMesh) return;
             n.castShadow = true;
@@ -157,7 +157,7 @@ export class EnemyManager {
             // Contact collision: enemy body touching player causes melee damage over time.
             const contactRange = Math.max(1.0, e.r * 0.95);
             if (d < contactRange) {
-                let touchDmg = (e.type === 'green' ? 18 : e.type === 'blue' ? 11 : 8) * dt;
+                let touchDmg = (e.type === 'green' ? 28 : e.type === 'blue' ? 21 : 18) * dt;
                 if (player.shield > 0) {
                     const absorbed = Math.min(player.shield, touchDmg);
                     player.shield -= absorbed;
