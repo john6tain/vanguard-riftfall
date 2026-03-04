@@ -72,10 +72,18 @@ export class RemoteSyncController {
   }
 
   applyRemoteState(id, state) {
+    const game = this.game;
     if (!state || !Number.isFinite(state.x) || !Number.isFinite(state.z)) return;
     const player = this.ensureRemotePlayer(id);
-    player.position.set(state.x, 0, state.z);
-    player.rotation.y = Number.isFinite(state.yaw) ? state.yaw : player.rotation.y;
+
+    // Clamp to arena bounds and run collision resolve so remote players don't appear to walk through walls.
+    const px = Math.max(-155, Math.min(155, state.x));
+    const pz = Math.max(-155, Math.min(155, state.z));
+    player.position.set(px, 0, pz);
+    game.collision?.resolveXZ(player.position, 0.55);
+
+    // Remote rig mesh faces +Z, while camera/world forward uses -Z. Add PI so shots look forward, not backward.
+    player.rotation.y = Number.isFinite(state.yaw) ? (state.yaw + Math.PI) : player.rotation.y;
   }
 
   spawnRemoteBullet(data) {

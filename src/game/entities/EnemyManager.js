@@ -52,11 +52,11 @@ export class EnemyManager {
     }
 
     startWave(wave, stage) {
-        const stageMultiplier = stage === 1 ? 1 : stage === 2 ? 1.15 : 1.3;
-        const enemyCount = Math.floor((6 + wave * 2) * stageMultiplier);
+        const stageMultiplier = stage === 1 ? 1.25 : stage === 2 ? 1.45 : 1.7;
+        const enemyCount = Math.floor((10 + wave * 3) * stageMultiplier);
         for (let i = 0; i < enemyCount; i++) {
             const enemyTypeRoll = Math.random();
-            this.spawn(enemyTypeRoll < 0.2 ? 'green' : enemyTypeRoll < 0.45 ? 'blue' : 'red');
+            this.spawn(enemyTypeRoll < 0.24 ? 'green' : enemyTypeRoll < 0.5 ? 'blue' : 'red');
         }
     }
 
