@@ -2,6 +2,7 @@ export class Player {
     constructor(camera) {
         this.camera = camera;
         this.hp = 100;
+        this.maxHp = 100;
         this.shield = 100;
         this.maxShield = 100;
         this.ammo = 36;

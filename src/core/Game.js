@@ -102,6 +102,7 @@ export class Game {
         }, 1500);
 
         this.bullets = [];
+        this.healDrops = [];
         this.rayDir = new THREE.Vector3();
         this.gameOver = false;
         this.finished = false;
@@ -169,6 +170,19 @@ export class Game {
     togglePause() {
         if (this.paused) this.resumeGame();
         else this.pauseGame();
+    }
+
+    spawnHealDrop(x, z) {
+        const mat = new THREE.MeshBasicMaterial({color: 0x22c55e});
+        const plus = new THREE.Group();
+
+        const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.18, 0.18), mat);
+        const vBar = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.8, 0.18), mat);
+        plus.add(hBar, vBar);
+
+        plus.position.set(x, 1.0, z);
+        this.scene.add(plus);
+        this.healDrops.push({mesh: plus, value: 20, life: 14});
     }
 
     shoot() {
@@ -292,11 +306,14 @@ export class Game {
                         if (reflect > 0) this.player.hp -= reflect;
 
                         if (e.hp <= 0) {
+                            const wasGreen = e.type === 'green';
                             this.scene.remove(e.mesh);
                             this.enemyManager.enemies = this.enemyManager.enemies.filter((x) => x !== e);
                             this.player.kills++;
                             this.player.streak++;
                             this.player.score += 100 + this.player.streak * 10;
+
+                            if (wasGreen) this.spawnHealDrop(e.mesh.position.x, e.mesh.position.z);
                         }
                         break;
                     }
@@ -305,6 +322,25 @@ export class Game {
             this.bullets = this.bullets.filter((b) => {
                 if (b.life <= 0) {
                     this.scene.remove(b.mesh);
+                    return false;
+                }
+                return true;
+            });
+
+            // Heal pickups (green +) dropped by brutes.
+            this.healDrops = this.healDrops.filter((d) => {
+                d.life -= dt;
+                d.mesh.rotation.y += dt * 2.8;
+                d.mesh.position.y = 1.0 + Math.sin((14 - d.life) * 4) * 0.08;
+
+                const near = dist2(this.camera.position.x, this.camera.position.z, d.mesh.position.x, d.mesh.position.z) < 1.1 * 1.1;
+                if (near) {
+                    this.player.hp = Math.min(this.player.maxHp || 100, this.player.hp + d.value);
+                    this.scene.remove(d.mesh);
+                    return false;
+                }
+                if (d.life <= 0) {
+                    this.scene.remove(d.mesh);
                     return false;
                 }
                 return true;

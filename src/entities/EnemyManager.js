@@ -78,11 +78,11 @@ export class EnemyManager {
         return g;
     }
 
-    spawn(type = 'lancer') {
+    spawn(type = 'red') {
         const cfg = {
-            lancer: {hp: 40, spd: 3.2, color: 0xd85a5a, r: 0.9, atk: 8, cd: 0.9},
-            specter: {hp: 72, spd: 4.4, color: 0x6aa9e9, r: 0.9, atk: 12, cd: 0.55},
-            brute: {hp: 150, spd: 2.1, color: 0x7b9662, r: 0.9, atk: 18, cd: 1.2},
+            red: {hp: 40, spd: 3.2, color: 0xd85a5a, bulletColor: 0xff6b6b, r: 0.9, atk: 8, cd: 0.9},
+            blue: {hp: 72, spd: 4.4, color: 0x60a5fa, bulletColor: 0x60a5fa, r: 0.9, atk: 12, cd: 0.55},
+            green: {hp: 150, spd: 2.1, color: 0x4ade80, bulletColor: 0x4ade80, r: 0.9, atk: 18, cd: 1.2},
         }[type];
 
         const mesh = this.cloneModelOrNull(type) || this.createFallbackModel(cfg);
@@ -94,7 +94,7 @@ export class EnemyManager {
         });
         if (!mesh.isMesh) {
             // Stable class scales for imported models (avoid bbox glitches causing invisibility)
-            const s = type === 'brute' ? 2.2 : type === 'specter' ? 1.4 : 1.8;
+            const s = type === 'green' ? 2.2 : type === 'blue' ? 1.4 : 1.8;
             mesh.scale.setScalar(s);
             mesh.position.y = 1.0;
         }
@@ -114,7 +114,7 @@ export class EnemyManager {
         const count = Math.floor((6 + wave * 2) * stageMul);
         for (let i = 0; i < count; i++) {
             const t = Math.random();
-            this.spawn(t < 0.2 ? 'brute' : t < 0.45 ? 'specter' : 'lancer');
+            this.spawn(t < 0.2 ? 'green' : t < 0.45 ? 'blue' : 'red');
         }
     }
 
@@ -133,7 +133,7 @@ export class EnemyManager {
             // Contact collision: enemy body touching player causes melee damage over time.
             const contactRange = Math.max(1.0, e.r * 0.95);
             if (d < contactRange) {
-                let touchDmg = (e.type === 'brute' ? 18 : e.type === 'specter' ? 11 : 8) * dt;
+                let touchDmg = (e.type === 'green' ? 18 : e.type === 'blue' ? 11 : 8) * dt;
                 if (player.shield > 0) {
                     const absorbed = Math.min(player.shield, touchDmg);
                     player.shield -= absorbed;
@@ -148,7 +148,7 @@ export class EnemyManager {
                 const muzzleY = (e.mesh.position.y || 0) + 1.25;
                 const aim = new THREE.Vector3(camera.position.x - e.mesh.position.x, (camera.position.y + 0.2) - muzzleY, camera.position.z - e.mesh.position.z).normalize();
 
-                const shot = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), new THREE.MeshBasicMaterial({color: 0xff8a8a}));
+                const shot = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), new THREE.MeshBasicMaterial({color: e.bulletColor || e.color || 0xff8a8a}));
                 shot.position.set(e.mesh.position.x, muzzleY, e.mesh.position.z);
                 this.scene.add(shot);
                 this.enemyShots.push({mesh: shot, vx: aim.x * 24, vy: aim.y * 24, vz: aim.z * 24, dmg: e.atk, life: 3});
