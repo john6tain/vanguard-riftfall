@@ -1,0 +1,288 @@
+import * as THREE from 'three';
+import {Player} from '../entities/Player.js';
+import {InputManager} from '../systems/InputManager.js';
+import {CollisionSystem} from '../systems/CollisionSystem.js';
+import {EnemyManager} from '../entities/EnemyManager.js';
+import {WaveSystem} from '../systems/WaveSystem.js';
+import {AdManager} from '../systems/AdManager.js';
+import {dist2} from '../utils/math.js';
+
+export class Game {
+    constructor() {
+        this.hud = {
+            hp: document.getElementById('hp'),
+            sh: document.getElementById('sh'),
+            am: document.getElementById('am'),
+            ks: document.getElementById('ks'),
+            sc: document.getElementById('sc'),
+            stg: document.getElementById('stg'),
+            stk: document.getElementById('stk'),
+        };
+
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x070b14);
+        this.scene.fog = new THREE.Fog(0x070b14, 40, 180);
+
+        this.camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 500);
+        this.camera.position.set(0, 1.7, 8);
+
+        this.renderer = new THREE.WebGLRenderer({antialias: true});
+        this.renderer.setSize(innerWidth, innerHeight);
+        this.renderer.setPixelRatio(devicePixelRatio);
+        document.body.appendChild(this.renderer.domElement);
+
+        addEventListener('resize', () => {
+            this.camera.aspect = innerWidth / innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(innerWidth, innerHeight);
+        });
+
+        this.scene.add(new THREE.HemisphereLight(0x8fb5ff, 0x223344, 0.8));
+        const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+        dir.position.set(30, 40, 20);
+        this.scene.add(dir);
+
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(500, 500),
+            new THREE.MeshStandardMaterial({color: 0x0b1322, roughness: 0.98})
+        );
+        floor.rotation.x = -Math.PI / 2;
+        this.scene.add(floor);
+        this.scene.add(new THREE.GridHelper(500, 120, 0x1b2a44, 0x13233a));
+
+        this.obstacles = [];
+        const addBox = (w, h, d, x, y, z, color = 0x1a2a42) => {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({color}));
+            m.position.set(x, y, z);
+            m.userData.size = {w, d, h};
+            this.scene.add(m);
+            this.obstacles.push(m);
+        };
+
+        for (let i = 0; i < 80; i++) {
+            const w = 2 + Math.random() * 6, h = 1 + Math.random() * 4, d = 2 + Math.random() * 6;
+            addBox(w, h, d, (Math.random() - 0.5) * 220, h / 2, (Math.random() - 0.5) * 220);
+        }
+        for (let i = 0; i < 60; i++) {
+            const h = 10 + Math.random() * 40, w = 6 + Math.random() * 10, d = 6 + Math.random() * 10;
+            const ring = 150 + Math.random() * 70;
+            const a = (i / 60) * Math.PI * 2;
+            addBox(w, h, d, Math.cos(a) * ring, h / 2, Math.sin(a) * ring, 0x101827);
+        }
+
+        this.extractPoint = new THREE.Vector3(120, 0, -120);
+        this.extractRing = new THREE.Mesh(new THREE.TorusGeometry(6, 0.5, 10, 40), new THREE.MeshBasicMaterial({color: 0x34d399}));
+        this.extractRing.rotation.x = Math.PI / 2;
+        this.extractRing.position.copy(this.extractPoint);
+        this.extractRing.position.y = 0.15;
+        this.extractRing.visible = false;
+        this.scene.add(this.extractRing);
+
+        this.player = new Player(this.camera);
+        this.input = new InputManager(this.player, this.renderer.domElement);
+        this.collision = new CollisionSystem(this.obstacles);
+        this.enemyManager = new EnemyManager(this.scene, this.obstacles, this.collision);
+        this.waves = new WaveSystem(this.enemyManager, this.extractRing);
+        this.ads = new AdManager();
+        this.ads.init();
+
+        // start first wave after model preload (or timeout fallback)
+        this._waveStarted = false;
+        this.enemyManager.readyPromise.then(() => {
+            if (!this._waveStarted) {
+                this.waves.startWave();
+                this._waveStarted = true;
+            }
+        });
+        setTimeout(() => {
+            if (!this._waveStarted) {
+                this.waves.startWave();
+                this._waveStarted = true;
+            }
+        }, 1500);
+
+        this.bullets = [];
+        this.rayDir = new THREE.Vector3();
+        this.gameOver = false;
+        this.finished = false;
+        this.win = false;
+
+        this.msg = document.getElementById('msg');
+        const deploy = document.getElementById('startBtn');
+        const doDeploy = () => {
+            if (document.fullscreenElement == null && document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => {
+                });
+            }
+            if (this.input.isMobileTouch) {
+                this.input.locked = true;
+            } else {
+                this.renderer.domElement.requestPointerLock();
+            }
+            this.msg.style.display = 'none';
+        };
+
+        deploy.onclick = doDeploy;
+        deploy.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            doDeploy();
+        }, {passive: false});
+
+        this.clock = new THREE.Clock();
+    }
+
+    shoot() {
+        if (this.player.fireCd > 0 || this.player.ammo <= 0) return;
+        this.player.fireCd = 0.12;
+        this.player.ammo--;
+
+        this.camera.getWorldDirection(this.rayDir);
+        const spread = 0.012 + Math.min(0.03, Math.max(0, this.player.fireCd) * 0.35);
+        this.rayDir.x += (Math.random() - 0.5) * spread;
+        this.rayDir.y += (Math.random() - 0.5) * spread * 0.7;
+        this.rayDir.z += (Math.random() - 0.5) * spread;
+        this.rayDir.normalize();
+
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({color: 0x9ad6ff}));
+        mesh.position.copy(this.camera.position);
+        mesh.position.y = 1.5;
+        this.scene.add(mesh);
+        this.bullets.push({
+            mesh,
+            vx: this.rayDir.x * 80,
+            vy: this.rayDir.y * 80,
+            vz: this.rayDir.z * 80,
+            life: 2.2,
+            dmg: 28
+        });
+    }
+
+    update() {
+        const dt = Math.min(0.033, this.clock.getDelta());
+        if (!this.gameOver) {
+            if (this.input.locked && this.input.mouseDown) this.shoot();
+
+            if (this.input.isMobileTouch) {
+                this.input.yaw -= this.input.mobileLook.x * 0.032;
+                this.input.pitch -= this.input.mobileLook.y * 0.024;
+                this.input.pitch = Math.max(-1.35, Math.min(1.35, this.input.pitch));
+            }
+
+            this.camera.rotation.order = 'YXZ';
+            this.camera.rotation.y = this.input.yaw;
+            this.camera.rotation.x = this.input.pitch;
+
+            const sprint = this.input.keys['shift'] ? 1.55 : 1;
+            const sp = this.player.speed * sprint;
+            const fwd = new THREE.Vector3();
+            this.camera.getWorldDirection(fwd);
+            fwd.y = 0;
+            if (fwd.lengthSq() > 0) fwd.normalize();
+            const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+            const move = new THREE.Vector3();
+            if (this.input.keys['w'] || this.input.mobileMove.y < -0.15) move.add(fwd);
+            if (this.input.keys['s'] || this.input.mobileMove.y > 0.15) move.sub(fwd);
+            if (this.input.keys['d'] || this.input.mobileMove.x > 0.15) move.add(right);
+            if (this.input.keys['a'] || this.input.mobileMove.x < -0.15) move.sub(right);
+            if (move.lengthSq() > 0) this.camera.position.add(move.normalize().multiplyScalar(sp * dt));
+
+            this.collision.resolveXZ(this.camera.position, 0.55);
+            this.player.updateVertical(dt);
+            this.player.fireCd = Math.max(0, this.player.fireCd - dt);
+
+            this.enemyManager.update(dt, this.player, this.camera);
+            this.waves.update(dt, this.enemyManager.enemies.length);
+
+            if (this.waves.stage === 3) {
+                this.extractRing.rotation.z += dt * 0.8;
+                if (dist2(this.camera.position.x, this.camera.position.z, this.extractPoint.x, this.extractPoint.z) < 36) {
+                    this.gameOver = true;
+                    this.win = true;
+                }
+            }
+
+            for (const b of this.bullets) {
+                b.mesh.position.x += b.vx * dt;
+                b.mesh.position.y += b.vy * dt;
+                b.mesh.position.z += b.vz * dt;
+                b.life -= dt;
+                if (this.enemyManager.pointHitsObstacle(b.mesh.position.x, b.mesh.position.z)) b.life = 0;
+                for (const e of this.enemyManager.enemies) {
+                    const dx = e.mesh.position.x - b.mesh.position.x;
+                    const dz = e.mesh.position.z - b.mesh.position.z;
+                    const dy = (e.mesh.position.y + 1.2) - b.mesh.position.y;
+                    if ((dx * dx + dz * dz + dy * dy) < Math.max(0.9, e.r * 1.1) ** 2) {
+                        e.hp -= b.dmg;
+                        b.life = 0;
+                        if (e.hp <= 0) {
+                            this.scene.remove(e.mesh);
+                            this.enemyManager.enemies = this.enemyManager.enemies.filter((x) => x !== e);
+                            this.player.kills++;
+                            this.player.streak++;
+                            this.player.score += 100 + this.player.streak * 10;
+                        }
+                        break;
+                    }
+                }
+            }
+            this.bullets = this.bullets.filter((b) => {
+                if (b.life <= 0) {
+                    this.scene.remove(b.mesh);
+                    return false;
+                }
+                return true;
+            });
+
+            if (this.player.canRechargeShild) {
+                this.player.shield = Math.min(this.player.maxShield, this.player.shield + 5.2 * dt);
+            }
+            if (this.player.hp <= 0) {
+                this.gameOver = true;
+                this.win = false;
+            }
+
+            this.hud.hp.textContent = Math.max(0, this.player.hp | 0);
+            this.hud.sh.textContent = this.player.shield | 0;
+            this.hud.am.textContent = this.player.ammo;
+            this.hud.ks.textContent = this.player.kills;
+            this.hud.sc.textContent = this.player.score | 0;
+            this.hud.stk.textContent = this.player.streak | 0;
+            this.hud.stg.textContent = this.waves.stage === 1 ? `Breach • Wave ${this.waves.wave}` : this.waves.stage === 2 ? `Hold • ${this.waves.holdWavesLeft} waves left` : 'Extract';
+        }
+
+        if (this.gameOver && !this.finished) {
+            this.finished = true;
+            this.ads.onMatchFinished();
+            this.msg.style.display = 'block';
+            this.msg.innerHTML = `
+        <h2>${this.win ? 'Mission Complete' : 'Mission Failed'}</h2>
+        <p>Score: ${this.player.score | 0} • Kills: ${this.player.kills}</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button id="redeployBtn">Redeploy</button>
+          <button id="rewardBtn">Watch Ad +250 Score</button>
+        </div>`;
+
+            const redeploy = document.getElementById('redeployBtn');
+            redeploy?.addEventListener('click', () => location.reload());
+            redeploy?.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                location.reload();
+            }, {passive: false});
+
+            const reward = document.getElementById('rewardBtn');
+            reward?.addEventListener('click', async () => {
+                reward.disabled = true;
+                const ok = await this.ads.showRewarded();
+                if (ok) {
+                    this.player.score += 250;
+                    this.hud.sc.textContent = this.player.score | 0;
+                    reward.textContent = 'Reward claimed';
+                }
+            });
+        }
+
+        this.renderer.render(this.scene, this.camera);
+        requestAnimationFrame(() => this.update());
+    }
+}

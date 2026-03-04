@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://vanguard-riftfall.john6tain-tube.workers.dev/sitemap.xml
