@@ -28,10 +28,10 @@ export class WaveSystem {
     this.wave += 1;
   }
 
-  update(dt, enemyCount) {
+  update(deltaTime, enemyCount) {
     if (this.waveInProgress && enemyCount === 0) this.onWaveCleared();
     if (!this.waveInProgress && this.stage !== 3) {
-      this.nextWaveDelay -= dt;
+      this.nextWaveDelay -= deltaTime;
       if (this.nextWaveDelay <= 0) this.startWave();
     }
   }

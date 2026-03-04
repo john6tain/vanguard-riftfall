@@ -30,31 +30,30 @@ Then open:
 `http://localhost:8080`
 
 ## Multiplayer MVP run
-The multiplayer server is **WebSocket-only**. It does **not** host static client files.
-Run them as two separate services on different ports.
+The server process exposes two ports:
+- Client HTTP: `http://localhost:8080`
+- WebSocket: `ws://localhost:8787`
 
-### 1) Start multiplayer server (WebSocket only)
+### 1) Start server (client + WebSocket)
 ```bash
 cd vanguard-riftfall/server
 npm install
 npm run start
 ```
-Server listens on:
-`ws://localhost:8787`
+Defaults:
+- Client: `http://localhost:8080`
+- WS: `ws://localhost:8787`
 
-### 2) Start game client (static HTTP server)
+Optional custom ports:
 ```bash
-cd vanguard-riftfall
-python3 -m http.server 8080
+CLIENT_PORT=8081 WS_PORT=8788 npm run start
 ```
-Client runs on:
-`http://localhost:8080`
 
-### 3) In-game setup
+### 2) In-game setup
 On the start panel:
 - Enter room code
-- Click **Host** on one player
-- Click **Join** on the other player using the same room code
+- Click Host on one player
+- Click Join on the other player using the same room code
 
 Notes:
 - If host room name is already used, server auto-renames (`room-2`, `room-3`, ...).
@@ -75,13 +74,21 @@ Notes:
 - `R` button: reload
 
 ## Project structure
-- `index.html` — page shell, HUD, multiplayer start UI
-- `src/main.js` — game bootstrap + multiplayer UI wiring
-- `src/core/Game.js` — main game loop + sync hooks
-- `src/net/NetClient.js` — WebSocket client transport
-- `server/server.mjs` — multiplayer room WebSocket server
-- `server/package.json` — server deps/scripts
-- `robots.txt`, `sitemap.xml` — SEO/static metadata
+- `index.html` - page shell, HUD, multiplayer start UI
+- `src/main.js` - game bootstrap + multiplayer UI wiring
+- `src/game/core/Game.js` - main game loop + sync hooks
+- `src/game/core/WorldBuilder.js` - scene, arena, extract objective, camera, renderer bootstrap
+- `src/game/core/*Controller.js` - OOP controllers for UI, motion, combat, network ticks, objectives, and player state
+- `src/game/entities/*` - player + enemy domain logic
+- `src/game/entities/EnemyFactory.js` - enemy creation and spawn configuration
+- `src/game/entities/EnemyAiSystem.js` - enemy movement, animation, melee, and shoot logic
+- `src/game/entities/EnemyProjectileSystem.js` - enemy projectile travel, collisions, and cleanup
+- `src/game/systems/*` - input, collision, wave, and ads systems
+- `src/network/NetClient.js` - WebSocket client transport
+- `src/shared/math.js` - common math helpers
+- `server/server.mjs` - multiplayer room WebSocket server
+- `server/package.json` - server deps/scripts
+- `robots.txt`, `sitemap.xml` - SEO/static metadata
 
 ## Deployment
 Deploy as a static site (Cloudflare Pages/Workers static assets, Netlify, Vercel static, GitHub Pages, etc.).

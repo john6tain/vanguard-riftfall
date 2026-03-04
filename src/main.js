@@ -1,9 +1,9 @@
-import { Game } from './core/Game.js';
-import { NetClient } from './net/NetClient.js';
+import { Game } from './game/core/Game.js';
+import { NetClient } from './network/NetClient.js';
 
 function wsDefaultUrl() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.hostname}:8787`;
+  const socketProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${socketProtocol}://${location.hostname}:8787`;
 }
 
 async function boot() {
@@ -15,10 +15,10 @@ async function boot() {
   const soloBtn = document.getElementById('soloBtn');
   const mpStatus = document.getElementById('mpStatus');
 
-  let net = null;
+  let activeNetClient = null;
 
-  const setStatus = (t) => {
-    if (mpStatus) mpStatus.textContent = t;
+  const setStatus = (statusText) => {
+    if (mpStatus) mpStatus.textContent = statusText;
   };
 
   const connect = async (mode) => {
@@ -26,14 +26,14 @@ async function boot() {
     setStatus(`Connecting (${mode})...`);
 
     try {
-      net = new NetClient();
-      net.onStatus = (t) => setStatus(t);
-      await net.connect({ url: wsDefaultUrl(), room, mode });
-      game.setNetClient(net);
-      setStatus(`${mode === 'host' ? 'Host' : 'Joined'}: ${net.room}`);
-    } catch (e) {
-      setStatus(`Multiplayer error: ${e?.message || e}`);
-      net = null;
+      activeNetClient = new NetClient();
+      activeNetClient.onStatus = (statusText) => setStatus(statusText);
+      await activeNetClient.connect({ url: wsDefaultUrl(), room, mode });
+      game.setNetClient(activeNetClient);
+      setStatus(`${mode === 'host' ? 'Host' : 'Joined'}: ${activeNetClient.room}`);
+    } catch (error) {
+      setStatus(`Multiplayer error: ${error?.message || error}`);
+      activeNetClient = null;
       game.setNetClient(null);
     }
   };
@@ -41,8 +41,8 @@ async function boot() {
   hostBtn?.addEventListener('click', () => void connect('host'));
   joinBtn?.addEventListener('click', () => void connect('join'));
   soloBtn?.addEventListener('click', () => {
-    net = null;
-    game.net = null;
+    activeNetClient = null;
+    game.setNetClient(null);
     setStatus('Mode: Solo');
   });
 
