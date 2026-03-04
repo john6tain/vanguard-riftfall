@@ -115,7 +115,8 @@ export class EnemyManager {
         this.collision.resolveXZ(mesh.position, Math.max(0.7, cfg.r * 0.7));
 
         this.scene.add(mesh);
-        this.enemies.push({...cfg, type, mesh, shootCd: Math.random() * cfg.cd});
+        const id = `e_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+        this.enemies.push({id, ...cfg, type, mesh, shootCd: Math.random() * cfg.cd});
     }
 
     startWave(wave, stage) {
