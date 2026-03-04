@@ -88,7 +88,7 @@ export class Game {
 
         // start first wave after model preload (or timeout fallback)
         this._waveStarted = false;
-        this.enemyManager.readyPromise.then(() => {
+        Promise.resolve(this.enemyManager.readyPromise).then(() => {
             if (!this._waveStarted) {
                 this.waves.startWave();
                 this._waveStarted = true;

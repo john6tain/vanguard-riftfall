@@ -18,8 +18,8 @@ export class EnemyManager {
         //     brute: './assets/models/brute.glb',
         // };
 
-        // best effort preload (fallbacks still work)
-        // this.readyPromise = Promise.allSettled(Object.values(this.classModelPath).map((p) => this.preloadModel(p)));
+        // Best-effort preload hook (kept even when GLBs are disabled) so callers can safely await readiness.
+        this.readyPromise = Promise.resolve();
     }
 
     async preloadModel(path) {
