@@ -38,7 +38,18 @@
   <div id="hud">HP: <span id="hp">100</span> | Shield: <span id="sh">80</span> | Ammo: <span id="am">36</span> | Kills: <span id="ks">0</span> | Score: <span id="sc">0</span> | Stage: <span id="stg">Breach</span> | Streak: <span id="stk">0</span></div>
   <div id="tip">WASD move • Mouse look • Click shoot • R reload • Shift sprint</div>
   <div id="center"></div>
-  <div id="msg"><h2>Vanguard: Riftfall (3D)</h2><p>Click to lock mouse and deploy.</p><button id="startBtn">Deploy</button></div>
+  <div id="msg">
+    <h2>Vanguard: Riftfall (3D)</h2>
+    <p>Choose mode, then deploy.</p>
+    <div style="display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;margin:10px 0">
+      <input id="roomInput" value="rift" placeholder="room code" style="padding:7px 10px;border-radius:8px;border:1px solid #3b82f6;background:#081326;color:#dbeafe;min-width:130px" />
+      <button id="hostBtn" type="button">Host</button>
+      <button id="joinBtn" type="button">Join</button>
+      <button id="soloBtn" type="button">Solo</button>
+    </div>
+    <p id="mpStatus" style="opacity:.9;margin:6px 0 10px">Mode: Solo</p>
+    <button id="startBtn">Deploy</button>
+  </div>
   <div id="mobile">
     <div id="moveStick" class="stick"><div class="knob" id="moveKnob"></div></div>
     <div id="lookStick" class="stick"><div class="knob" id="lookKnob"></div></div>

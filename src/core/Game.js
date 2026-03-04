@@ -8,7 +8,7 @@ import {AdManager} from '../systems/AdManager.js';
 import {dist2} from '../utils/math.js';
 
 export class Game {
-    constructor() {
+    constructor(netClient = null) {
         this.hud = {
             hp: document.getElementById('hp'),
             sh: document.getElementById('sh'),
@@ -157,6 +157,12 @@ export class Game {
         this.bullets = [];
         this.healDrops = [];
         this.rayDir = new THREE.Vector3();
+        this.net = netClient;
+        this.remotePlayers = new Map();
+        this.remoteEnemies = new Map();
+        this._lastNetStateAt = 0;
+        this._lastEnemySnapAt = 0;
+        this._sentMissionFailed = false;
         this.gameOver = false;
         this.finished = false;
         this.win = false;
@@ -192,6 +198,28 @@ export class Game {
         });
 
         this.clock = new THREE.Clock();
+        this.setNetClient(this.net);
+    }
+
+    setNetClient(netClient) {
+        this.net = netClient;
+        if (!this.net) return;
+        this.net.onRemoteState = (id, state) => this.applyRemoteState(id, state);
+        this.net.onRemoteShoot = (_id, data) => this.spawnRemoteBullet(data);
+        this.net.onEnemySnapshot = (data) => this.applyEnemySnapshot(data);
+        this.net.onEnemyHit = (from, data) => this.applyRemoteEnemyHit(from, data);
+        this.net.onMissionFailed = () => {
+            this.gameOver = true;
+            this.win = false;
+        };
+
+        if (!this.net.isHost) {
+            for (const e of this.enemyManager.enemies) this.scene.remove(e.mesh);
+            for (const s of this.enemyManager.enemyShots) this.scene.remove(s.mesh);
+            this.enemyManager.enemies = [];
+            this.enemyManager.enemyShots = [];
+            this._waveStarted = true;
+        }
     }
 
     pauseGame() {
@@ -223,6 +251,122 @@ export class Game {
     togglePause() {
         if (this.paused) this.resumeGame();
         else this.pauseGame();
+    }
+
+    ensureRemotePlayer(id) {
+        if (this.remotePlayers.has(id)) return this.remotePlayers.get(id);
+
+        // Enemy-like rig, but orange (for remote players)
+        const g = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({color: 0xf97316, roughness: 0.68, metalness: 0.12});
+        const armorMat = new THREE.MeshStandardMaterial({color: 0x9a3412, roughness: 0.55, metalness: 0.22});
+
+        const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.75, 6, 10), bodyMat);
+        torso.position.y = 1.1;
+        g.add(torso);
+
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 14), bodyMat);
+        head.position.set(0, 1.75, 0.08);
+        g.add(head);
+
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.09, 0.09), armorMat);
+        visor.position.set(0, 1.73, 0.2);
+        g.add(visor);
+
+        const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.34, 4, 8), bodyMat);
+        const armR = armL.clone();
+        armL.position.set(-0.22, 1.08, 0);
+        armR.position.set(0.22, 1.08, 0);
+        g.add(armL, armR);
+
+        const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.4, 4, 8), bodyMat);
+        const legR = legL.clone();
+        legL.position.set(-0.1, 0.45, 0);
+        legR.position.set(0.1, 0.45, 0);
+        g.add(legL, legR);
+
+        this.scene.add(g);
+        this.remotePlayers.set(id, g);
+        return g;
+    }
+
+    applyRemoteState(id, state) {
+        if (!state || !Number.isFinite(state.x) || !Number.isFinite(state.z)) return;
+        const p = this.ensureRemotePlayer(id);
+        p.position.set(state.x, 0, state.z);
+        p.rotation.y = Number.isFinite(state.yaw) ? state.yaw : p.rotation.y;
+    }
+
+    spawnRemoteBullet(data) {
+        if (!data) return;
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({color: 0xffffff}));
+        mesh.position.set(data.x ?? 0, data.y ?? 1.5, data.z ?? 0);
+        this.scene.add(mesh);
+        this.bullets.push({
+            mesh,
+            vx: (data.dx ?? 0) * 80,
+            vy: (data.dy ?? 0) * 80,
+            vz: (data.dz ?? 0) * 80,
+            life: 1.0,
+            dmg: 0
+        });
+    }
+
+    ensureReplicatedEnemy(id, type = 'red') {
+        if (this.remoteEnemies.has(id)) return this.remoteEnemies.get(id);
+        const cfg = type === 'green'
+            ? {color: 0x4ade80, r: 0.9}
+            : type === 'blue'
+                ? {color: 0x60a5fa, r: 0.9}
+                : {color: 0xd85a5a, r: 0.9};
+        const mesh = this.enemyManager.createFallbackModel(cfg);
+        const s = type === 'green' ? 2.2 : type === 'blue' ? 1.4 : 1.8;
+        mesh.scale.setScalar(s);
+        mesh.position.y = -0.15;
+        this.scene.add(mesh);
+        const enemy = {id, type, r: 0.9, hp: 100, mesh};
+        this.remoteEnemies.set(id, enemy);
+        return enemy;
+    }
+
+    applyEnemySnapshot(data) {
+        if (!data || !Array.isArray(data.enemies)) return;
+        if (Number.isFinite(data.stage)) this.waves.stage = data.stage;
+        if (Number.isFinite(data.wave)) this.waves.wave = data.wave;
+        const seen = new Set();
+        for (const s of data.enemies) {
+            if (!s?.id) continue;
+            seen.add(s.id);
+            const e = this.ensureReplicatedEnemy(s.id, s.type);
+            e.type = s.type || e.type;
+            e.hp = Number.isFinite(s.hp) ? s.hp : e.hp;
+            e.mesh.position.set(s.x || 0, s.y || -0.15, s.z || 0);
+            if (Number.isFinite(s.ry)) e.mesh.rotation.y = s.ry;
+        }
+
+        for (const [id, e] of this.remoteEnemies.entries()) {
+            if (seen.has(id)) continue;
+            this.scene.remove(e.mesh);
+            this.remoteEnemies.delete(id);
+        }
+
+        // Swap visible enemy list for client followers to the host snapshot.
+        this.enemyManager.enemies = [...this.remoteEnemies.values()];
+    }
+
+    applyRemoteEnemyHit(_from, data) {
+        if (!this.net?.isHost) return;
+        if (!data?.id) return;
+        const e = this.enemyManager.enemies.find((x) => x.id === data.id);
+        if (!e) return;
+
+        e.hp -= Number(data.dmg || 28);
+        if (e.hp <= 0) {
+            const wasGreen = e.type === 'green';
+            this.scene.remove(e.mesh);
+            this.enemyManager.enemies = this.enemyManager.enemies.filter((x) => x !== e);
+            if (wasGreen) this.spawnHealDrop(e.mesh.position.x, e.mesh.position.z);
+        }
     }
 
     spawnHealDrop(x, z) {
@@ -263,6 +407,15 @@ export class Game {
             life: 2.2,
             dmg: 28
         });
+
+        this.net?.sendShoot({
+            x: mesh.position.x,
+            y: mesh.position.y,
+            z: mesh.position.z,
+            dx: this.rayDir.x,
+            dy: this.rayDir.y,
+            dz: this.rayDir.z
+        });
     }
 
     update() {
@@ -275,6 +428,7 @@ export class Game {
         }
 
         if (!this.gameOver) {
+            const isJoinClient = !!(this.net?.connected && !this.net.isHost);
             if (this.input.locked && this.input.mouseDown) this.shoot();
 
             if (this.input.isMobileTouch) {
@@ -286,6 +440,16 @@ export class Game {
             this.camera.rotation.order = 'YXZ';
             this.camera.rotation.y = this.input.yaw;
             this.camera.rotation.x = this.input.pitch;
+
+            const now = performance.now();
+            if (this.net?.connected && now - this._lastNetStateAt > 50) {
+                this._lastNetStateAt = now;
+                this.net.sendState({
+                    x: this.camera.position.x,
+                    z: this.camera.position.z,
+                    yaw: this.input.yaw
+                });
+            }
 
             const sprint = this.input.keys['shift'] ? 1.18 : 1;
             const sp = this.player.speed * sprint;
@@ -305,7 +469,7 @@ export class Game {
             this.player.updateVertical(dt);
             this.player.fireCd = Math.max(0, this.player.fireCd - dt);
 
-            this.enemyManager.update(dt, this.player, this.camera);
+            if (!isJoinClient) this.enemyManager.update(dt, this.player, this.camera);
 
             // Player-enemy body collision: prevent walking through enemies.
             const playerR = 0.55;
@@ -326,7 +490,24 @@ export class Game {
                 }
             }
 
-            this.waves.update(dt, this.enemyManager.enemies.length);
+            if (!isJoinClient) this.waves.update(dt, this.enemyManager.enemies.length);
+
+            if (this.net?.connected && this.net.isHost && now - this._lastEnemySnapAt > 100) {
+                this._lastEnemySnapAt = now;
+                this.net.sendEnemySnapshot({
+                    stage: this.waves.stage,
+                    wave: this.waves.wave,
+                    enemies: this.enemyManager.enemies.map((e) => ({
+                        id: e.id,
+                        type: e.type,
+                        hp: e.hp,
+                        x: e.mesh.position.x,
+                        y: e.mesh.position.y,
+                        z: e.mesh.position.z,
+                        ry: e.mesh.rotation.y
+                    }))
+                });
+            }
 
             if (this.waves.stage === 3) {
                 this.extractRing.rotation.z += dt * 0.8;
@@ -342,6 +523,21 @@ export class Game {
                 b.mesh.position.z += b.vz * dt;
                 b.life -= dt;
                 if (this.enemyManager.pointHitsObstacle(b.mesh.position.x, b.mesh.position.z)) b.life = 0;
+
+                if (isJoinClient) {
+                    for (const e of this.enemyManager.enemies) {
+                        const dx = e.mesh.position.x - b.mesh.position.x;
+                        const dz = e.mesh.position.z - b.mesh.position.z;
+                        const dy = (e.mesh.position.y + 1.2) - b.mesh.position.y;
+                        if ((dx * dx + dz * dz + dy * dy) < Math.max(0.9, e.r * 1.1) ** 2) {
+                            this.net?.sendEnemyHit({ id: e.id, dmg: b.dmg || 28 });
+                            b.life = 0;
+                            break;
+                        }
+                    }
+                    continue;
+                }
+
                 for (const e of this.enemyManager.enemies) {
                     const dx = e.mesh.position.x - b.mesh.position.x;
                     const dz = e.mesh.position.z - b.mesh.position.z;
@@ -406,6 +602,10 @@ export class Game {
             if (this.player.hp <= 0) {
                 this.gameOver = true;
                 this.win = false;
+                if (this.net?.connected && this.net.isHost && !this._sentMissionFailed) {
+                    this._sentMissionFailed = true;
+                    this.net.sendMissionFailed({ reason: 'host_down' });
+                }
             }
 
             this.hud.hp.textContent = Math.max(0, this.player.hp | 0);
