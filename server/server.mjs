@@ -5,6 +5,9 @@ import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 
+const DEBUG_HITS = process.env.DEBUG_HITS === '1';
+const dlog = (...args) => { if (DEBUG_HITS) console.log('[debug]', ...args); };
+
 const WS_PORT = Number(process.env.WS_PORT || 8787);
 const CLIENT_PORT = Number(process.env.CLIENT_PORT || 8080);
 
@@ -121,7 +124,8 @@ wss.on('connection', (socket) => {
     }
 
     if (message.type === 'shoot') {
-      broadcast(room, { type: 'shoot', from: id, data: message.data }, id);
+      const isEnemyShot = message.data?.source === 'enemy';
+      broadcast(room, { type: 'shoot', from: id, data: message.data }, isEnemyShot ? null : id);
       return;
     }
 
@@ -136,6 +140,7 @@ wss.on('connection', (socket) => {
       const hostId = roomHosts.get(roomName);
       const hostSock = hostId ? room.get(hostId) : null;
       if (hostSock && hostSock.readyState === 1) {
+        dlog('enemyHit', { room: roomName, from: id, to: hostId, data: message.data });
         hostSock.send(JSON.stringify({ type: 'enemyHit', from: id, data: message.data }));
       }
       return;
@@ -145,6 +150,26 @@ wss.on('connection', (socket) => {
       if (roomHosts.get(roomName) === id) {
         broadcast(room, { type: 'missionFailed', from: id, data: message.data }, id);
       }
+      return;
+    }
+
+    if (message.type === 'playerHit') {
+      if (roomHosts.get(roomName) !== id) return;
+      const targetId = message.data?.targetId;
+      if (!targetId) return;
+      const targetSock = room.get(targetId);
+      if (targetSock && targetSock.readyState === 1) {
+        dlog('playerHit', { room: roomName, from: id, to: targetId, data: message.data });
+        targetSock.send(JSON.stringify({ type: 'playerHit', from: id, data: message.data }));
+      } else {
+        dlog('playerHit dropped (target missing)', { room: roomName, from: id, to: targetId, data: message.data });
+      }
+      return;
+    }
+
+    if (message.type === 'healDrop') {
+      if (roomHosts.get(roomName) !== id) return;
+      broadcast(room, { type: 'healDrop', from: id, data: message.data }, id);
     }
   });
 

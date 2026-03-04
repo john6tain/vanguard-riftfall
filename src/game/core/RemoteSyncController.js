@@ -14,6 +14,8 @@ export class RemoteSyncController {
     game.netClient.onRemoteShoot = (_fromPlayerId, data) => this.spawnRemoteBullet(data);
     game.netClient.onEnemySnapshot = (data) => this.applyEnemySnapshot(data);
     game.netClient.onEnemyHit = (fromPlayerId, data) => this.applyRemoteEnemyHit(fromPlayerId, data);
+    game.netClient.onPlayerHit = (data) => this.applyLocalPlayerHit(data);
+    game.netClient.onHealDrop = (data) => this.applyRemoteHealDrop(data);
     game.netClient.onMissionFailed = () => {
       game.gameOver = true;
       game.win = false;
@@ -76,6 +78,9 @@ export class RemoteSyncController {
     if (!state || !Number.isFinite(state.x) || !Number.isFinite(state.z)) return;
     const player = this.ensureRemotePlayer(id);
 
+    player.userData.alive = state.alive !== false;
+    player.visible = player.userData.alive;
+
     // Clamp to arena bounds and run collision resolve so remote players don't appear to walk through walls.
     const px = Math.max(-155, Math.min(155, state.x));
     const pz = Math.max(-155, Math.min(155, state.z));
@@ -89,16 +94,25 @@ export class RemoteSyncController {
   spawnRemoteBullet(data) {
     const game = this.game;
     if (!data) return;
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    const size = Number.isFinite(data.size) ? data.size : 0.12;
+    const speed = Number.isFinite(data.speed) ? data.speed : 80;
+    const life = Number.isFinite(data.life) ? data.life : 1.2;
+    const color = Number.isFinite(data.color) ? data.color : 0xffffff;
+
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(size, 8, 8),
+      new THREE.MeshBasicMaterial({ color }),
+    );
     mesh.position.set(data.x ?? 0, data.y ?? 1.5, data.z ?? 0);
     game.scene.add(mesh);
     game.bullets.push({
       mesh,
-      vx: (data.dx ?? 0) * 80,
-      vy: (data.dy ?? 0) * 80,
-      vz: (data.dz ?? 0) * 80,
-      life: 1.0,
+      vx: (data.dx ?? 0) * speed,
+      vy: (data.dy ?? 0) * speed,
+      vz: (data.dz ?? 0) * speed,
+      life,
       dmg: 0,
+      authoritativeHit: false,
     });
   }
 
@@ -148,7 +162,7 @@ export class RemoteSyncController {
     game.enemyManager.enemies = [...game.remoteEnemies.values()];
   }
 
-  applyRemoteEnemyHit(_fromPlayerId, data) {
+  applyRemoteEnemyHit(fromPlayerId, data) {
     const game = this.game;
     if (!game.netClient?.isHost) return;
     if (!data?.id) return;
@@ -156,11 +170,48 @@ export class RemoteSyncController {
     if (!enemy) return;
 
     enemy.hp -= Number(data.dmg || 28);
+    enemy.aggroTargetId = fromPlayerId || enemy.aggroTargetId;
+    enemy.aggroUntil = performance.now() + 5000;
     if (enemy.hp <= 0) {
       const wasGreen = enemy.type === 'green';
       game.scene.remove(enemy.mesh);
       game.enemyManager.enemies = game.enemyManager.enemies.filter((x) => x !== enemy);
       if (wasGreen) game.spawnHealDrop(enemy.mesh.position.x, enemy.mesh.position.z);
     }
+  }
+
+  applyLocalPlayerHit(data) {
+    const game = this.game;
+    const apply = () => {
+      let damage = Number(data?.dmg || 0);
+      if (damage <= 0) return;
+
+      if (data?.kind === 'contact' && Number.isFinite(data.ex) && Number.isFinite(data.ez)) {
+        const dx = game.camera.position.x - data.ex;
+        const dz = game.camera.position.z - data.ez;
+        if ((dx * dx + dz * dz) > 2.4 * 2.4) return;
+      }
+
+      if (game.player.shield > 0) {
+        const absorbed = Math.min(game.player.shield, damage);
+        game.player.shield -= absorbed;
+        damage -= absorbed;
+      }
+      if (damage > 0) game.player.hp -= damage;
+    };
+
+    const delayMs = Number(data?.delayMs || 0);
+    if (data?.kind === 'projectile' && delayMs > 0) {
+      setTimeout(apply, Math.min(1200, delayMs));
+      return;
+    }
+
+    apply();
+  }
+
+  applyRemoteHealDrop(data) {
+    const game = this.game;
+    if (!data || !Number.isFinite(data.x) || !Number.isFinite(data.z)) return;
+    game.spawnHealDrop(data.x, data.z);
   }
 }

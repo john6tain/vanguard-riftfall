@@ -21,6 +21,16 @@ async function boot() {
     if (mpStatus) mpStatus.textContent = statusText;
   };
 
+  const sendAliveState = (isAlive) => {
+    if (!activeNetClient?.connected) return;
+    activeNetClient.sendState({
+      x: game.camera.position.x,
+      z: game.camera.position.z,
+      yaw: game.input.yaw,
+      alive: !!isAlive,
+    });
+  };
+
   const connect = async (mode) => {
     const room = (roomInput?.value || 'rift').trim().toLowerCase() || 'rift';
     setStatus(`Connecting (${mode})...`);
@@ -47,6 +57,11 @@ async function boot() {
   });
 
   game.update();
+
+  // Broadcast death/alive state for multiplayer target filtering.
+  setInterval(() => {
+    sendAliveState(!game.gameOver);
+  }, 200);
 }
 
 boot();

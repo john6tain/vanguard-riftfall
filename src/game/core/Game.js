@@ -151,7 +151,22 @@ export class Game {
             this.networkTick.sendPlayerStateIfNeeded(now);
             this.motion.updateMovement(dt);
 
-            if (!isJoinClient) this.enemyManager.update(dt, this.player, this.camera);
+            if (!isJoinClient) {
+                const localPlayerId = this.netClient?.id || 'local';
+                const targetActors = [
+                    { id: localPlayerId, x: this.camera.position.x, z: this.camera.position.z, y: this.camera.position.y, isLocal: true },
+                    ...Array.from(this.remotePlayers.entries())
+                        .filter(([, p]) => p?.userData?.alive !== false)
+                        .map(([id, p]) => ({
+                            id,
+                            x: p.position.x,
+                            z: p.position.z,
+                            y: p.position.y || 1.7,
+                            isLocal: false,
+                        })),
+                ];
+                this.enemyManager.update(dt, this.player, this.camera, targetActors, this.netClient);
+            }
             this.motion.resolvePlayerEnemyCollision();
 
             if (!isJoinClient) this.waves.update(dt, this.enemyManager.enemies.length);

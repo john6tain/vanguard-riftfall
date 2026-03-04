@@ -18,6 +18,10 @@ export class CombatController {
     healPickupMesh.position.set(x, 1.0, z);
     game.scene.add(healPickupMesh);
     game.healDrops.push({ mesh: healPickupMesh, value: 20, life: 14 });
+
+    if (game.netClient?.connected && game.netClient.isHost) {
+      game.netClient.sendHealDrop({ x, z });
+    }
   }
 
   shoot() {
@@ -48,6 +52,7 @@ export class CombatController {
       vz: game.rayDir.z * 80,
       life: 2.2,
       dmg: 28,
+      authoritativeHit: true,
     });
 
     game.netClient?.sendShoot({
@@ -57,6 +62,10 @@ export class CombatController {
       dx: game.rayDir.x,
       dy: game.rayDir.y,
       dz: game.rayDir.z,
+      speed: 80,
+      life: 2.2,
+      size: 0.12,
+      color: 0xff8a00,
     });
   }
 
@@ -68,6 +77,9 @@ export class CombatController {
       bullet.mesh.position.z += bullet.vz * deltaTime;
       bullet.life -= deltaTime;
       if (game.enemyManager.pointHitsObstacle(bullet.mesh.position.x, bullet.mesh.position.z)) bullet.life = 0;
+
+      // Network-replicated bullets are visual-only on this client.
+      if (!bullet.authoritativeHit) continue;
 
       if (isJoinClient) {
         this.handleJoinClientBulletHit(bullet);
@@ -108,6 +120,8 @@ export class CombatController {
       const deltaY = enemy.mesh.position.y + 1.2 - bullet.mesh.position.y;
       if ((deltaX * deltaX + deltaZ * deltaZ + deltaY * deltaY) < Math.max(0.9, enemy.r * 1.1) ** 2) {
         enemy.hp -= bullet.dmg;
+        enemy.aggroTargetId = game.netClient?.id || 'local';
+        enemy.aggroUntil = performance.now() + 5000;
         bullet.life = 0;
 
         let reflectedDamage = 2;

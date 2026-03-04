@@ -9,6 +9,8 @@ export class NetClient {
     this.onRemoteShoot = null;
     this.onEnemySnapshot = null;
     this.onEnemyHit = null;
+    this.onPlayerHit = null;
+    this.onHealDrop = null;
     this.onMissionFailed = null;
     this.onStatus = null;
   }
@@ -75,6 +77,14 @@ export class NetClient {
           this.onEnemyHit?.(message.from, message.data);
           return;
         }
+        if (message.type === 'playerHit' && message.data) {
+          this.onPlayerHit?.(message.data);
+          return;
+        }
+        if (message.type === 'healDrop' && message.data) {
+          this.onHealDrop?.(message.data);
+          return;
+        }
         if (message.type === 'missionFailed') {
           this.onMissionFailed?.(message);
         }
@@ -116,5 +126,15 @@ export class NetClient {
   sendMissionFailed(data = {}) {
     if (!this.connected || !this.ws) return;
     this.ws.send(JSON.stringify({ type: 'missionFailed', data }));
+  }
+
+  sendPlayerHit(data) {
+    if (!this.connected || !this.ws) return;
+    this.ws.send(JSON.stringify({ type: 'playerHit', data }));
+  }
+
+  sendHealDrop(data) {
+    if (!this.connected || !this.ws) return;
+    this.ws.send(JSON.stringify({ type: 'healDrop', data }));
   }
 }

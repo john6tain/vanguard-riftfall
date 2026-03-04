@@ -47,21 +47,38 @@ export class EnemyManager {
         return this.factory.createFallbackModel(enemyConfig);
     }
 
-    spawn(type = 'red') {
-        this.enemies.push(this.factory.createEnemy(type));
+    spawn(type = 'red', spawnPosition = null) {
+        this.enemies.push(this.factory.createEnemy(type, spawnPosition));
     }
 
     startWave(wave, stage) {
-        const stageMultiplier = stage === 1 ? 1.25 : stage === 2 ? 1.45 : 1.7;
-        const enemyCount = Math.floor((10 + wave * 3) * stageMultiplier);
+        const stageMultiplier = stage === 1 ? 1.0 : stage === 2 ? 1.2 : 1.4;
+        const enemyCount = Math.max(3, Math.floor((3 + wave) * stageMultiplier));
+
+        const randomFarSpawn = () => {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 58 + Math.random() * 20;
+            return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius };
+        };
+
         for (let i = 0; i < enemyCount; i++) {
-            const enemyTypeRoll = Math.random();
-            this.spawn(enemyTypeRoll < 0.24 ? 'green' : enemyTypeRoll < 0.5 ? 'blue' : 'red');
+            const r = Math.random();
+            const type = r < 0.2 ? 'green' : r < 0.45 ? 'blue' : 'red';
+            this.spawn(type, randomFarSpawn());
         }
     }
 
-    update(dt, player, camera) {
-        this.aiSystem.updateEnemies(dt, this.enemies, player, camera, this.enemyShots);
+    update(dt, player, camera, targetActors = null, netClient = null) {
+        this.aiSystem.updateEnemies(
+            dt,
+            this.enemies,
+            player,
+            camera,
+            this.enemyShots,
+            targetActors,
+            netClient,
+            (x, z) => this.projectileSystem.pointHitsObstacle(x, z),
+        );
         this.projectileSystem.updateProjectiles(dt, this.enemyShots, player, camera);
         this.enemyShots = this.projectileSystem.cleanupExpiredProjectiles(this.enemyShots);
     }

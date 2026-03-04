@@ -66,7 +66,8 @@ export class WorldBuilder {
 
   buildCamera() {
     const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 500);
-    camera.position.set(0, 1.7, 8);
+    // Players spawn at map center
+    camera.position.set(0, 1.7, 0);
     return camera;
   }
 
@@ -103,44 +104,55 @@ export class WorldBuilder {
       obstacles.push(obstacleMesh);
     };
 
+    const mapSize = 180;
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(320, 320),
+      new THREE.PlaneGeometry(mapSize, mapSize),
       new THREE.MeshStandardMaterial({ color: 0x11151d, roughness: 0.95, metalness: 0.04 }),
     );
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
-    scene.add(new THREE.GridHelper(320, 80, 0x1b2a44, 0x13233a));
+    scene.add(new THREE.GridHelper(mapSize, 45, 0x1b2a44, 0x13233a));
 
-    for (let i = 0; i < 110; i++) {
-      const width = 2 + Math.random() * 7;
-      const height = 1 + Math.random() * 6;
-      const depth = 2 + Math.random() * 7;
-      addBox(width, height, depth, (Math.random() - 0.5) * 120, height / 2, (Math.random() - 0.5) * 120);
-    }
+    const wallColor = 0x172233;
+    const h = 12;
+    const t = 3;
+    const e = mapSize / 2;
 
-    for (let i = 0; i < 70; i++) {
-      const height = 12 + Math.random() * 46;
-      const width = 6 + Math.random() * 12;
-      const depth = 6 + Math.random() * 12;
-      const ringRadius = 105 + Math.random() * 35;
-      const ringAngle = (i / 70) * Math.PI * 2;
-      addBox(width, height, depth, Math.cos(ringAngle) * ringRadius, height / 2, Math.sin(ringAngle) * ringRadius, 0x101827);
-    }
+    // Outer walls
+    addBox(mapSize, h, t, 0, h / 2, -e, wallColor);
+    addBox(mapSize, h, t, 0, h / 2, e, wallColor);
+    addBox(t, h, mapSize, -e, h / 2, 0, wallColor);
+    addBox(t, h, mapSize, e, h / 2, 0, wallColor);
 
-    const wallHeight = 34;
-    const wallThickness = 6;
-    const wallLength = 312;
-    const wallEdge = 156;
-    addBox(wallLength, wallHeight, wallThickness, 0, wallHeight / 2, -wallEdge, 0x0b0f17);
-    addBox(wallLength, wallHeight, wallThickness, 0, wallHeight / 2, wallEdge, 0x0b0f17);
-    addBox(wallThickness, wallHeight, wallLength, -wallEdge, wallHeight / 2, 0, 0x0b0f17);
-    addBox(wallThickness, wallHeight, wallLength, wallEdge, wallHeight / 2, 0, 0x0b0f17);
+    // Corridor v2: long lanes with staggered blockers (maze-like, less arena)
+    // Vertical spine walls with alternating gaps
+    addBox(t, h, 60, -20, h / 2, -45, wallColor);
+    addBox(t, h, 60, -20, h / 2, 45, wallColor);
+    addBox(t, h, 50, 20, h / 2, -35, wallColor);
+    addBox(t, h, 50, 20, h / 2, 55, wallColor);
+
+    // Horizontal lane walls with offset cuts
+    addBox(70, h, t, -45, h / 2, -20, wallColor);
+    addBox(70, h, t, 45, h / 2, -20, wallColor);
+    addBox(65, h, t, -40, h / 2, 20, wallColor);
+    addBox(65, h, t, 50, h / 2, 20, wallColor);
+
+    // Chokepoint blockers
+    addBox(10, 7, 10, -55, 3.5, 0, 0x22354a);
+    addBox(10, 7, 10, 55, 3.5, -5, 0x22354a);
+    addBox(9, 7, 9, 0, 3.5, -55, 0x22354a);
+    addBox(9, 7, 9, 5, 3.5, 55, 0x22354a);
+
+    // Mid-lane cover
+    addBox(8, 6, 8, -5, 3, -5, 0x22354a);
+    addBox(8, 6, 8, 35, 3, 35, 0x22354a);
+    addBox(8, 6, 8, -35, 3, 35, 0x22354a);
 
     return { obstacles };
   }
 
   buildExtractObjective(scene) {
-    const extractPoint = new THREE.Vector3(78, 0, -78);
+    const extractPoint = new THREE.Vector3(34, 0, -34);
     const extractRing = new THREE.Mesh(
       new THREE.TorusGeometry(6, 0.5, 10, 40),
       new THREE.MeshBasicMaterial({ color: 0x34d399 }),
