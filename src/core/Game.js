@@ -20,12 +20,12 @@ export class Game {
         };
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x3f79a8);
-        this.scene.fog = new THREE.Fog(0x3f79a8, 65, 240);
+        this.scene.background = new THREE.Color(0x070b16);
+        this.scene.fog = new THREE.Fog(0x0a1220, 85, 300);
 
         // Simple procedural skybox dome (inside-out sphere with stars)
         const skyGeo = new THREE.SphereGeometry(420, 24, 24);
-        const skyMat = new THREE.MeshBasicMaterial({color: 0x4c86b7, side: THREE.BackSide});
+        const skyMat = new THREE.MeshBasicMaterial({color: 0x0d1a2e, side: THREE.BackSide});
         const sky = new THREE.Mesh(skyGeo, skyMat);
         this.scene.add(sky);
 
@@ -34,15 +34,36 @@ export class Game {
         const starPos = new Float32Array(starCount * 3);
         for (let i = 0; i < starCount; i++) {
             const r = 360 + Math.random() * 40;
-            const a = Math.random() * Math.PI * 2;
-            const y = (Math.random() * 2 - 1) * 0.7;
-            starPos[i * 3 + 0] = Math.cos(a) * r;
-            starPos[i * 3 + 1] = y * r;
-            starPos[i * 3 + 2] = Math.sin(a) * r;
+            const az = Math.random() * Math.PI * 2;
+            // Proper upper-hemisphere distribution (avoids ring/gap artifact)
+            const elev = Math.random() * (Math.PI * 0.48); // 0=zenith, ~86°=near horizon
+            const horiz = Math.sin(elev) * r;
+            const y = Math.cos(elev) * r;
+            starPos[i * 3 + 0] = Math.cos(az) * horiz;
+            starPos[i * 3 + 1] = y;
+            starPos[i * 3 + 2] = Math.sin(az) * horiz;
         }
         starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({color: 0xcde7ff, size: 0.8, sizeAttenuation: true}));
+        const stars = new THREE.Points(
+            starsGeo,
+            new THREE.PointsMaterial({color: 0xf8fbff, size: 1.2, sizeAttenuation: true, fog: false, depthWrite: false})
+        );
         this.scene.add(stars);
+
+        // Moon (fog-independent + glow so it stays visible and shines)
+        const moon = new THREE.Mesh(
+            new THREE.SphereGeometry(14, 24, 24),
+            new THREE.MeshBasicMaterial({color: 0xf2f6ff, fog: false, depthWrite: false})
+        );
+        moon.position.set(0, 190, -240);
+        this.scene.add(moon);
+
+        const moonGlow = new THREE.Mesh(
+            new THREE.SphereGeometry(20, 20, 20),
+            new THREE.MeshBasicMaterial({color: 0xbfd4ff, transparent: true, opacity: 0.22, fog: false, depthWrite: false})
+        );
+        moonGlow.position.copy(moon.position);
+        this.scene.add(moonGlow);
 
         this.camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 500);
         this.camera.position.set(0, 1.7, 8);
@@ -63,37 +84,13 @@ export class Game {
         dir.position.set(30, 40, 20);
         this.scene.add(dir);
 
-        const floorTexCanvas = document.createElement('canvas');
-        floorTexCanvas.width = 512;
-        floorTexCanvas.height = 512;
-        const fctx = floorTexCanvas.getContext('2d');
-        fctx.fillStyle = '#0f131b';
-        fctx.fillRect(0, 0, 512, 512);
-        fctx.strokeStyle = 'rgba(95,120,150,0.2)';
-        fctx.lineWidth = 2;
-        for (let i = 0; i <= 512; i += 32) {
-            fctx.beginPath();
-            fctx.moveTo(i, 0);
-            fctx.lineTo(i, 512);
-            fctx.stroke();
-            fctx.beginPath();
-            fctx.moveTo(0, i);
-            fctx.lineTo(512, i);
-            fctx.stroke();
-        }
-
-        const floorTex = new THREE.CanvasTexture(floorTexCanvas);
-        floorTex.wrapS = THREE.RepeatWrapping;
-        floorTex.wrapT = THREE.RepeatWrapping;
-        floorTex.repeat.set(20, 20);
-
         const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(500, 500),
-            new THREE.MeshStandardMaterial({map: floorTex, color: 0xffffff, roughness: 0.92, metalness: 0.05})
+            new THREE.PlaneGeometry(320, 320),
+            new THREE.MeshStandardMaterial({color: 0x11151d, roughness: 0.95, metalness: 0.04})
         );
         floor.rotation.x = -Math.PI / 2;
         this.scene.add(floor);
-        this.scene.add(new THREE.GridHelper(500, 120, 0x1b2a44, 0x13233a));
+        this.scene.add(new THREE.GridHelper(320, 80, 0x1b2a44, 0x13233a));
 
         this.obstacles = [];
         const addBox = (w, h, d, x, y, z, color = 0x1a2a42) => {
@@ -104,18 +101,29 @@ export class Game {
             this.obstacles.push(m);
         };
 
-        for (let i = 0; i < 80; i++) {
-            const w = 2 + Math.random() * 6, h = 1 + Math.random() * 4, d = 2 + Math.random() * 6;
-            addBox(w, h, d, (Math.random() - 0.5) * 220, h / 2, (Math.random() - 0.5) * 220);
+        // C variant: denser city feel, but on a smaller map footprint
+        for (let i = 0; i < 110; i++) {
+            const w = 2 + Math.random() * 7, h = 1 + Math.random() * 6, d = 2 + Math.random() * 7;
+            addBox(w, h, d, (Math.random() - 0.5) * 120, h / 2, (Math.random() - 0.5) * 120);
         }
-        for (let i = 0; i < 60; i++) {
-            const h = 10 + Math.random() * 40, w = 6 + Math.random() * 10, d = 6 + Math.random() * 10;
-            const ring = 150 + Math.random() * 70;
-            const a = (i / 60) * Math.PI * 2;
+        for (let i = 0; i < 70; i++) {
+            const h = 12 + Math.random() * 46, w = 6 + Math.random() * 12, d = 6 + Math.random() * 12;
+            const ring = 105 + Math.random() * 35;
+            const a = (i / 70) * Math.PI * 2;
             addBox(w, h, d, Math.cos(a) * ring, h / 2, Math.sin(a) * ring, 0x101827);
         }
 
-        this.extractPoint = new THREE.Vector3(120, 0, -120);
+        // Hard map boundary walls (stop player after skyline/building zone)
+        const wallH = 34;
+        const wallT = 6;
+        const wallL = 312;
+        const edge = 156;
+        addBox(wallL, wallH, wallT, 0, wallH / 2, -edge, 0x0b0f17); // north
+        addBox(wallL, wallH, wallT, 0, wallH / 2, edge, 0x0b0f17);  // south
+        addBox(wallT, wallH, wallL, -edge, wallH / 2, 0, 0x0b0f17); // west
+        addBox(wallT, wallH, wallL, edge, wallH / 2, 0, 0x0b0f17);  // east
+
+        this.extractPoint = new THREE.Vector3(78, 0, -78);
         this.extractRing = new THREE.Mesh(new THREE.TorusGeometry(6, 0.5, 10, 40), new THREE.MeshBasicMaterial({color: 0x34d399}));
         this.extractRing.rotation.x = Math.PI / 2;
         this.extractRing.position.copy(this.extractPoint);
@@ -279,7 +287,7 @@ export class Game {
             this.camera.rotation.y = this.input.yaw;
             this.camera.rotation.x = this.input.pitch;
 
-            const sprint = this.input.keys['shift'] ? 1.55 : 1;
+            const sprint = this.input.keys['shift'] ? 1.18 : 1;
             const sp = this.player.speed * sprint;
             const fwd = new THREE.Vector3();
             this.camera.getWorldDirection(fwd);

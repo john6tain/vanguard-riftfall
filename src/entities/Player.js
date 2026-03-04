@@ -7,7 +7,7 @@ export class Player {
         this.maxShield = 100;
         this.ammo = 36;
         this.maxAmmo = 36;
-        this.speed = 9;
+        this.speed = 7.2;
         this.fireCd = 0;
         this.kills = 0;
         this.score = 0;
@@ -23,7 +23,7 @@ export class Player {
 
     jump() {
         if (!this.onGround) return;
-        this.yVel = 6.2;
+        this.yVel = 6.8;
         this.onGround = false;
     }
 
