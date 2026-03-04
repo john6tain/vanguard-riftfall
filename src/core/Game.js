@@ -261,7 +261,7 @@ export class Game {
         const bodyMat = new THREE.MeshStandardMaterial({color: 0xf97316, roughness: 0.68, metalness: 0.12});
         const armorMat = new THREE.MeshStandardMaterial({color: 0x9a3412, roughness: 0.55, metalness: 0.22});
 
-        const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.75, 6, 10), bodyMat);
+        const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.45, 6, 10), bodyMat);
         torso.position.y = 1.1;
         g.add(torso);
 
@@ -269,14 +269,20 @@ export class Game {
         head.position.set(0, 1.75, 0.08);
         g.add(head);
 
-        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.09, 0.09), armorMat);
-        visor.position.set(0, 1.73, 0.2);
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.35,  0.12,  0.12), armorMat);
+        visor.position.set(0, 1.73, 0.22);
         g.add(visor);
+
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({color: 0x9a3412}));
+        const eyeR = eyeL.clone();
+        eyeL.position.set(-0.08, 1.73, 0.27);
+        eyeR.position.set(0.08, 1.73, 0.27);
+        g.add(eyeL, eyeR);
 
         const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.34, 4, 8), bodyMat);
         const armR = armL.clone();
-        armL.position.set(-0.22, 1.08, 0);
-        armR.position.set(0.22, 1.08, 0);
+        armL.position.set(-0.35, 1.1, 0);
+        armR.position.set(0.35, 1.1, 0);
         g.add(armL, armR);
 
         const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.4, 4, 8), bodyMat);
