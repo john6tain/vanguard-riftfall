@@ -106,6 +106,7 @@ export class Game {
         this.gameOver = false;
         this.finished = false;
         this.win = false;
+        this.paused = false;
 
         this.msg = document.getElementById('msg');
         const deploy = document.getElementById('startBtn');
@@ -129,7 +130,45 @@ export class Game {
             doDeploy();
         }, {passive: false});
 
+        addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !this.gameOver) {
+                e.preventDefault();
+                this.togglePause();
+            }
+        });
+
         this.clock = new THREE.Clock();
+    }
+
+    pauseGame() {
+        if (this.paused || this.gameOver) return;
+        this.paused = true;
+        this.input.mouseDown = false;
+        if (!this.input.isMobileTouch && document.pointerLockElement) document.exitPointerLock();
+        this.msg.style.display = 'block';
+        this.msg.innerHTML = `<h2>Paused</h2><p>Press Esc to resume.</p><button id="resumeBtn">Resume</button>`;
+        const resume = document.getElementById('resumeBtn');
+        resume?.addEventListener('click', () => this.resumeGame());
+        resume?.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.resumeGame();
+        }, {passive: false});
+    }
+
+    resumeGame() {
+        if (!this.paused || this.gameOver) return;
+        this.paused = false;
+        this.msg.style.display = 'none';
+        if (this.input.isMobileTouch) {
+            this.input.locked = true;
+        } else {
+            this.renderer.domElement.requestPointerLock?.();
+        }
+    }
+
+    togglePause() {
+        if (this.paused) this.resumeGame();
+        else this.pauseGame();
     }
 
     shoot() {
@@ -160,6 +199,13 @@ export class Game {
 
     update() {
         const dt = Math.min(0.033, this.clock.getDelta());
+
+        if (this.paused) {
+            this.renderer.render(this.scene, this.camera);
+            requestAnimationFrame(() => this.update());
+            return;
+        }
+
         if (!this.gameOver) {
             if (this.input.locked && this.input.mouseDown) this.shoot();
 
@@ -192,6 +238,26 @@ export class Game {
             this.player.fireCd = Math.max(0, this.player.fireCd - dt);
 
             this.enemyManager.update(dt, this.player, this.camera);
+
+            // Player-enemy body collision: prevent walking through enemies.
+            const playerR = 0.55;
+            for (const e of this.enemyManager.enemies) {
+                const ex = e.mesh.position.x;
+                const ez = e.mesh.position.z;
+                const dx = this.camera.position.x - ex;
+                const dz = this.camera.position.z - ez;
+                const d2 = dx * dx + dz * dz;
+                const minD = playerR + Math.max(0.65, e.r * 0.75);
+                if (d2 > 0 && d2 < minD * minD) {
+                    const d = Math.sqrt(d2);
+                    const nx = dx / d;
+                    const nz = dz / d;
+                    const push = (minD - d);
+                    this.camera.position.x += nx * push;
+                    this.camera.position.z += nz * push;
+                }
+            }
+
             this.waves.update(dt, this.enemyManager.enemies.length);
 
             if (this.waves.stage === 3) {
@@ -215,6 +281,16 @@ export class Game {
                     if ((dx * dx + dz * dz + dy * dy) < Math.max(0.9, e.r * 1.1) ** 2) {
                         e.hp -= b.dmg;
                         b.life = 0;
+
+                        // Risk mechanic: landing a hit causes small reflected damage to the player.
+                        let reflect = 2;
+                        if (this.player.shield > 0) {
+                            const absorbed = Math.min(this.player.shield, reflect);
+                            this.player.shield -= absorbed;
+                            reflect -= absorbed;
+                        }
+                        if (reflect > 0) this.player.hp -= reflect;
+
                         if (e.hp <= 0) {
                             this.scene.remove(e.mesh);
                             this.enemyManager.enemies = this.enemyManager.enemies.filter((x) => x !== e);

@@ -130,6 +130,18 @@ export class EnemyManager {
                 this.collision.resolveXZ(e.mesh.position, Math.max(0.7, e.r * 0.7));
             }
 
+            // Contact collision: enemy body touching player causes melee damage over time.
+            const contactRange = Math.max(1.0, e.r * 0.95);
+            if (d < contactRange) {
+                let touchDmg = (e.type === 'brute' ? 18 : e.type === 'specter' ? 11 : 8) * dt;
+                if (player.shield > 0) {
+                    const absorbed = Math.min(player.shield, touchDmg);
+                    player.shield -= absorbed;
+                    touchDmg -= absorbed;
+                }
+                if (touchDmg > 0) player.hp -= touchDmg;
+            }
+
             e.mesh.lookAt(camera.position.x, e.mesh.position.y, camera.position.z);
             e.shootCd -= dt;
             if (d < 55 && e.shootCd <= 0) {
