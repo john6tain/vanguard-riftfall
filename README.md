@@ -13,8 +13,15 @@ Because the app uses ES modules, serve it from a local web server:
 
 ```bash
 cd vanguard-riftfall
+
+# Option 1 (Python)
 python3 -m http.server 8080
-or node ....
+
+# Option 2 (Node, no install)
+npx serve -l 8080 .
+
+# Option 3 (Node, classic)
+npx http-server -p 8080 .
 ```
 
 Then open:
