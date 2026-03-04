@@ -1,8 +1,57 @@
-import { WebSocketServer } from 'ws';
+import http from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { WebSocketServer } from 'ws';
 
 const PORT = Number(process.env.PORT || 8787);
-const wss = new WebSocketServer({ port: PORT });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CLIENT_ROOT = path.resolve(__dirname, '..');
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+};
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    let reqPath = decodeURIComponent(url.pathname || '/');
+
+    if (reqPath === '/') reqPath = '/index.html';
+
+    const fullPath = path.resolve(CLIENT_ROOT, `.${reqPath}`);
+    if (!fullPath.startsWith(CLIENT_ROOT)) {
+      res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('Forbidden');
+      return;
+    }
+
+    const data = await readFile(fullPath);
+    const ext = path.extname(fullPath).toLowerCase();
+    res.writeHead(200, { 'content-type': MIME[ext] || 'application/octet-stream' });
+    res.end(data);
+  } catch {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+  }
+});
+
+const wss = new WebSocketServer({ server });
 
 const rooms = new Map(); // room -> Map<id, ws>
 const roomHosts = new Map(); // room -> hostId
@@ -50,7 +99,6 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // join path
       roomName = baseRoom;
       const room = rooms.get(roomName);
       if (!room || room.size === 0) {
@@ -114,4 +162,7 @@ wss.on('connection', (ws) => {
   });
 });
 
-console.log(`Riftfall WS server running on ws://localhost:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Riftfall server running on http://localhost:${PORT}`);
+  console.log(`WebSocket endpoint: ws://localhost:${PORT}`);
+});

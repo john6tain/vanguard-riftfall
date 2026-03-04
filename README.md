@@ -30,9 +30,10 @@ Then open:
 `http://localhost:8080`
 
 ## Multiplayer MVP run
-Run client and WebSocket server on separate ports.
+The multiplayer server is **WebSocket-only**. It does **not** host static client files.
+Run them as two separate services on different ports.
 
-### 1) Start multiplayer server (WebSocket)
+### 1) Start multiplayer server (WebSocket only)
 ```bash
 cd vanguard-riftfall/server
 npm install
@@ -41,7 +42,7 @@ npm run start
 Server listens on:
 `ws://localhost:8787`
 
-### 2) Start game client (HTTP)
+### 2) Start game client (static HTTP server)
 ```bash
 cd vanguard-riftfall
 python3 -m http.server 8080
