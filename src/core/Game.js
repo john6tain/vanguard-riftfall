@@ -20,8 +20,29 @@ export class Game {
         };
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x070b14);
-        this.scene.fog = new THREE.Fog(0x070b14, 40, 180);
+        this.scene.background = new THREE.Color(0x3f79a8);
+        this.scene.fog = new THREE.Fog(0x3f79a8, 65, 240);
+
+        // Simple procedural skybox dome (inside-out sphere with stars)
+        const skyGeo = new THREE.SphereGeometry(420, 24, 24);
+        const skyMat = new THREE.MeshBasicMaterial({color: 0x4c86b7, side: THREE.BackSide});
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        this.scene.add(sky);
+
+        const starsGeo = new THREE.BufferGeometry();
+        const starCount = 900;
+        const starPos = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            const r = 360 + Math.random() * 40;
+            const a = Math.random() * Math.PI * 2;
+            const y = (Math.random() * 2 - 1) * 0.7;
+            starPos[i * 3 + 0] = Math.cos(a) * r;
+            starPos[i * 3 + 1] = y * r;
+            starPos[i * 3 + 2] = Math.sin(a) * r;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({color: 0xcde7ff, size: 0.8, sizeAttenuation: true}));
+        this.scene.add(stars);
 
         this.camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 500);
         this.camera.position.set(0, 1.7, 8);
@@ -42,9 +63,33 @@ export class Game {
         dir.position.set(30, 40, 20);
         this.scene.add(dir);
 
+        const floorTexCanvas = document.createElement('canvas');
+        floorTexCanvas.width = 512;
+        floorTexCanvas.height = 512;
+        const fctx = floorTexCanvas.getContext('2d');
+        fctx.fillStyle = '#0f131b';
+        fctx.fillRect(0, 0, 512, 512);
+        fctx.strokeStyle = 'rgba(95,120,150,0.2)';
+        fctx.lineWidth = 2;
+        for (let i = 0; i <= 512; i += 32) {
+            fctx.beginPath();
+            fctx.moveTo(i, 0);
+            fctx.lineTo(i, 512);
+            fctx.stroke();
+            fctx.beginPath();
+            fctx.moveTo(0, i);
+            fctx.lineTo(512, i);
+            fctx.stroke();
+        }
+
+        const floorTex = new THREE.CanvasTexture(floorTexCanvas);
+        floorTex.wrapS = THREE.RepeatWrapping;
+        floorTex.wrapT = THREE.RepeatWrapping;
+        floorTex.repeat.set(20, 20);
+
         const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(500, 500),
-            new THREE.MeshStandardMaterial({color: 0x0b1322, roughness: 0.98})
+            new THREE.MeshStandardMaterial({map: floorTex, color: 0xffffff, roughness: 0.92, metalness: 0.05})
         );
         floor.rotation.x = -Math.PI / 2;
         this.scene.add(floor);
@@ -197,9 +242,10 @@ export class Game {
         this.rayDir.z += (Math.random() - 0.5) * spread;
         this.rayDir.normalize();
 
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({color: 0x9ad6ff}));
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({color: 0xff8a00}));
         mesh.position.copy(this.camera.position);
         mesh.position.y = 1.5;
+
         this.scene.add(mesh);
         this.bullets.push({
             mesh,

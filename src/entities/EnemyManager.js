@@ -75,6 +75,15 @@ export class EnemyManager {
         legR.position.set(cfg.r * 0.12, 0.45, 0);
         g.add(legL, legR);
 
+        g.userData.anim = {
+            armL,
+            armR,
+            legL,
+            legR,
+            phase: Math.random() * Math.PI * 2,
+            bob: Math.random() * Math.PI * 2,
+        };
+
         return g;
     }
 
@@ -124,10 +133,25 @@ export class EnemyManager {
             const dx = camera.position.x - e.mesh.position.x;
             const dz = camera.position.z - e.mesh.position.z;
             const d = Math.hypot(dx, dz) || 1;
-            if (d > 12) {
+            // Always chase the player.
+            if (d > 0.35) {
                 e.mesh.position.x += (dx / d) * e.spd * dt;
                 e.mesh.position.z += (dz / d) * e.spd * dt;
                 this.collision.resolveXZ(e.mesh.position, Math.max(0.7, e.r * 0.7));
+            }
+
+            const moved = d > 0.35;
+            const anim = e.mesh.userData?.anim;
+            if (anim) {
+                const speed = Math.max(0.6, e.spd * 0.8);
+                anim.phase += dt * speed * (moved ? 7.5 : 2.0);
+                const swing = moved ? 0.65 : 0.12;
+                anim.legL.rotation.x = Math.sin(anim.phase) * swing;
+                anim.legR.rotation.x = -Math.sin(anim.phase) * swing;
+                anim.armL.rotation.x = -Math.sin(anim.phase) * swing * 0.7;
+                anim.armR.rotation.x = Math.sin(anim.phase) * swing * 0.7;
+                anim.bob += dt * (moved ? 8 : 2);
+                e.mesh.position.y = -0.15 + Math.abs(Math.sin(anim.bob)) * (moved ? 0.05 : 0.01);
             }
 
             // Contact collision: enemy body touching player causes melee damage over time.
