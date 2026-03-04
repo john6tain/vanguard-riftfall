@@ -23,3 +23,5 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+# Bot runtime logs
+bot-player/*.out

@@ -1,0 +1,11 @@
+{
+  "name": "riftfall-bot-player",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node companion-bot.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
