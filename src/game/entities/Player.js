@@ -7,6 +7,9 @@ export class Player {
         this.maxShield = 100;
         this.ammo = 36;
         this.maxAmmo = 36;
+        this.reloadDuration = 1.1;
+        this.reloadTimer = 0;
+        this.reloading = false;
         this.speed = 7.2;
         this.fireCooldown = 0;
         this.kills = 0;
@@ -17,8 +20,23 @@ export class Player {
         this.canRechargeShield = true;
     }
 
+    startReload() {
+        if (this.reloading) return;
+        if (this.ammo >= this.maxAmmo) return;
+        this.reloading = true;
+        this.reloadTimer = this.reloadDuration;
+    }
+
     reloadInstant() {
+        this.reloading = false;
+        this.reloadTimer = 0;
         this.ammo = this.maxAmmo;
+    }
+
+    updateReload(dt) {
+        if (!this.reloading) return;
+        this.reloadTimer = Math.max(0, this.reloadTimer - dt);
+        if (this.reloadTimer <= 0) this.reloadInstant();
     }
 
     jump() {

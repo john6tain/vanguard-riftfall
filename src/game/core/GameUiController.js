@@ -70,9 +70,13 @@ export class GameUiController {
 
   updateHud() {
     const game = this.game;
-    game.hud.health.textContent = Math.max(0, game.player.hp | 0);
-    game.hud.shield.textContent = game.player.shield | 0;
-    game.hud.ammo.textContent = game.player.ammo;
+    const hp = Math.max(0, game.player.hp | 0);
+    const sh = Math.max(0, game.player.shield | 0);
+    game.hud.health.textContent = hp;
+    game.hud.shield.textContent = sh;
+    game.hud.ammo.textContent = game.player.reloading
+      ? `${game.player.ammo} ⟳`
+      : game.player.ammo;
     game.hud.kills.textContent = game.player.kills;
     game.hud.score.textContent = game.player.score | 0;
     game.hud.streak.textContent = game.enemyManager.enemies.length | 0;
@@ -81,6 +85,34 @@ export class GameUiController {
       : game.waves.stage === 2
         ? `Hold - ${game.waves.holdWavesLeft} waves left`
         : 'Extract';
+
+    if (game.hud.hpFill) {
+      const hpPct = Math.max(0, Math.min(100, (game.player.hp / (game.player.maxHp || 100)) * 100));
+      game.hud.hpFill.style.width = `${hpPct}%`;
+    }
+    if (game.hud.shFill) {
+      const shPct = Math.max(0, Math.min(100, (game.player.shield / (game.player.maxShield || 100)) * 100));
+      game.hud.shFill.style.width = `${shPct}%`;
+    }
+
+    if (game.hud.reloadWrap && game.hud.reloadFill) {
+      if (game.player.reloading) {
+        game.hud.reloadWrap.style.display = 'block';
+        const progress = 1 - (game.player.reloadTimer / Math.max(0.001, game.player.reloadDuration || 1));
+        game.hud.reloadFill.style.width = `${Math.max(0, Math.min(100, progress * 100))}%`;
+      } else {
+        game.hud.reloadWrap.style.display = 'none';
+      }
+    }
+
+    if (game.hud.chargeWrap && game.hud.chargeFill) {
+      if (game.chargeActive) {
+        game.hud.chargeWrap.style.display = 'block';
+        game.hud.chargeFill.style.width = `${Math.max(0, Math.min(100, (game.chargeTime / 1.5) * 100))}%`;
+      } else {
+        game.hud.chargeWrap.style.display = 'none';
+      }
+    }
   }
 
   maybeShowGameOver() {

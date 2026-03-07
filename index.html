@@ -16,8 +16,21 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1958335778436231" crossorigin="anonymous"></script>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;background:#03060d;color:#dbeafe;font-family:system-ui,Arial}
-    #hud{position:fixed;left:12px;top:10px;z-index:5;font-weight:700;text-shadow:0 2px 8px #000}
+    #hud{position:fixed;left:12px;bottom:14px;z-index:5;width:min(420px,calc(100vw - 24px));display:grid;gap:8px}
     #tip{position:fixed;right:12px;top:10px;z-index:5;text-align:right;opacity:.9}
+    .hudCard{background:linear-gradient(180deg,#071224dd,#06101bcc);border:1px solid #2b4469;border-radius:12px;padding:10px 12px;backdrop-filter:blur(2px);box-shadow:0 10px 30px #0008}
+    .hudTop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:700;text-shadow:0 2px 8px #000}
+    .hudStat{font-size:13px;color:#dbeafe}
+    .hudStat b{color:#fff}
+    .meter{height:10px;background:#0a1628;border:1px solid #22395b;border-radius:999px;overflow:hidden;margin-top:6px}
+    .meter > i{display:block;height:100%;width:100%;transition:width .12s linear}
+    #hpFill{background:linear-gradient(90deg,#ef4444,#f97316)}
+    #shFill{background:linear-gradient(90deg,#38bdf8,#6366f1)}
+    #reloadWrap{display:none}
+    #reloadFill{background:linear-gradient(90deg,#fde047,#f59e0b)}
+    #chargeWrap{display:none}
+    #chargeFill{background:linear-gradient(90deg,#22d3ee,#86efac)}
+    #hudMeta{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px;color:#bfdbfe}
     #center{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;width:8px;height:8px;border:2px solid #9dd6ff;border-radius:999px}
     #msg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;background:#000b;border:1px solid #60a5fa;padding:14px 18px;border-radius:10px;text-align:center}
     button{background:#0b1a33;color:#dbeafe;border:1px solid #3b82f6;padding:8px 12px;border-radius:8px;cursor:pointer}
@@ -35,7 +48,23 @@
   </style>
 </head>
 <body>
-  <div id="hud">HP: <span id="hp">100</span> | Shield: <span id="sh">80</span> | Ammo: <span id="am">36</span> | Kills: <span id="ks">0</span> | Score: <span id="sc">0</span> | Stage: <span id="stg">Breach</span> | Enemies left: <span id="stk">0</span></div>
+  <div id="hud" class="hudCard">
+    <div class="hudTop">
+      <div class="hudStat">HP <b><span id="hp">100</span></b></div>
+      <div class="hudStat">Shield <b><span id="sh">80</span></b></div>
+      <div class="hudStat">Ammo <b><span id="am">36</span></b></div>
+    </div>
+    <div class="meter"><i id="hpFill"></i></div>
+    <div class="meter"><i id="shFill"></i></div>
+    <div class="meter" id="reloadWrap"><i id="reloadFill"></i></div>
+    <div class="meter" id="chargeWrap"><i id="chargeFill"></i></div>
+    <div id="hudMeta">
+      <span>Kills: <b id="ks">0</b></span>
+      <span>Score: <b id="sc">0</b></span>
+      <span>Stage: <b id="stg">Breach</b></span>
+      <span>Enemies: <b id="stk">0</b></span>
+    </div>
+  </div>
   <div id="tip">WASD move | Mouse look | Click shoot | R reload | Shift sprint</div>
   <div id="center"></div>
   <div id="msg">

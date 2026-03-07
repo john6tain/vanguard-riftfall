@@ -25,10 +25,12 @@ export class InputManager {
     addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
       this.keys[k] = true;
-      if (k === 'r') this.player.reloadInstant();
+      if (k === 'r') this.player.startReload();
       if (k === ' ' || e.code === 'Space') this.player.jump();
     });
     addEventListener('keyup', (e) => (this.keys[e.key.toLowerCase()] = false));
+    this.mouseRight = false;
+
     addEventListener('mousedown', (e) => {
       if (this.freeCamMouseMode) {
         if (e.button === 1) {
@@ -38,13 +40,18 @@ export class InputManager {
         }
       }
       if (e.button === 0) this.mouseDown = true;
+      if (e.button === 2) this.mouseRight = true;
     });
     addEventListener('mouseup', (e) => {
       if (this.freeCamMouseMode && e.button === 1) {
         this.freeCamLook = false;
         return;
       }
-      this.mouseDown = false;
+      if (e.button === 0) this.mouseDown = false;
+      if (e.button === 2) this.mouseRight = false;
+    });
+    document.addEventListener('contextmenu', (e) => {
+      if (!this.freeCamMouseMode) e.preventDefault();
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -146,7 +153,7 @@ export class InputManager {
         if (role === 'move') setStick(moveKnob, this.mobileMove, t, moveStick);
         if (role === 'look') setStick(lookKnob, this.mobileLook, t, lookStick);
         if (role === 'fire') this.mouseDown = true;
-        if (role === 'reload') this.player.reloadInstant();
+        if (role === 'reload') this.player.startReload();
       }
     }, { passive: false });
 

@@ -127,18 +127,28 @@ export class WorldBuilder {
     addBox(t, h, mapSize, -e, h / 2, 0, wallColor);
     addBox(t, h, mapSize, e, h / 2, 0, wallColor);
 
-    // Corridor v2: long lanes with staggered blockers (maze-like, less arena)
-    // Vertical spine walls with alternating gaps
-    addBox(t, h, 44, -14, h / 2, -26, wallColor);
-    addBox(t, h, 44, -14, h / 2, 26, wallColor);
-    addBox(t, h, 38, 14, h / 2, -20, wallColor);
-    addBox(t, h, 38, 14, h / 2, 32, wallColor);
+    // Corridor v3: split long walls into segments so every "room" has a doorway.
+    // Vertical spine walls (explicit exits carved near center and corners)
+    addBox(t, h, 18, -14, h / 2, -39, wallColor);
+    addBox(t, h, 18, -14, h / 2, -14, wallColor);
+    addBox(t, h, 18, -14, h / 2, 14, wallColor);
+    addBox(t, h, 18, -14, h / 2, 39, wallColor);
 
-    // Horizontal lane walls with tighter offset cuts
-    addBox(48, h, t, -26, h / 2, -12, wallColor);
-    addBox(48, h, t, 26, h / 2, -12, wallColor);
-    addBox(44, h, t, -24, h / 2, 12, wallColor);
-    addBox(44, h, t, 30, h / 2, 12, wallColor);
+    addBox(t, h, 16, 14, h / 2, -34, wallColor);
+    addBox(t, h, 16, 14, h / 2, -10, wallColor);
+    addBox(t, h, 16, 14, h / 2, 20, wallColor);
+    addBox(t, h, 16, 14, h / 2, 44, wallColor);
+
+    // Horizontal lane walls (door gaps line up with vertical exits)
+    addBox(20, h, t, -38, h / 2, -12, wallColor);
+    addBox(20, h, t, -12, h / 2, -12, wallColor);
+    addBox(20, h, t, 12, h / 2, -12, wallColor);
+    addBox(20, h, t, 38, h / 2, -12, wallColor);
+
+    addBox(18, h, t, -37, h / 2, 12, wallColor);
+    addBox(18, h, t, -13, h / 2, 12, wallColor);
+    addBox(18, h, t, 17, h / 2, 12, wallColor);
+    addBox(18, h, t, 41, h / 2, 12, wallColor);
 
     // Optional custom map additions saved from free-cam editor.
     try {

@@ -26,9 +26,18 @@ export class CombatController {
 
   shoot() {
     const game = this.game;
-    if (game.player.fireCooldown > 0 || game.player.ammo <= 0) return;
+    if (game.player.reloading) return;
+    if (game.player.fireCooldown > 0) return;
+    if (game.player.ammo <= 0) {
+      game.player.startReload();
+      return;
+    }
+
     game.player.fireCooldown = 0.12;
     game.player.ammo--;
+    game.weaponRecoil = Math.min(1.0, (game.weaponRecoil || 0) + 0.85);
+    game.sound?.shoot();
+    if (game.player.ammo <= 0) game.player.startReload();
 
     game.camera.getWorldDirection(game.rayDir);
     const spread = 0.012 + Math.min(0.03, Math.max(0, game.player.fireCooldown) * 0.35);
@@ -41,8 +50,8 @@ export class CombatController {
       new THREE.SphereGeometry(0.12, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0xff8a00 }),
     );
-    bulletMesh.position.copy(game.camera.position);
-    bulletMesh.position.y = 1.5;
+    const muzzlePos = game.getWeaponMuzzleWorldPosition();
+    bulletMesh.position.copy(muzzlePos);
 
     game.scene.add(bulletMesh);
     game.bullets.push({
@@ -67,6 +76,66 @@ export class CombatController {
       size: 0.12,
       color: 0xff8a00,
     });
+  }
+
+  shootCharged(chargeRatio = 0) {
+    const game = this.game;
+    if (game.player.reloading) return;
+    if (game.player.fireCooldown > 0) return;
+
+    const ratio = Math.max(0, Math.min(1, chargeRatio));
+    const ammoCost = 2 + Math.round(ratio * 4);
+    if (game.player.ammo < ammoCost) {
+      game.player.startReload();
+      return;
+    }
+
+    game.player.ammo -= ammoCost;
+    game.player.fireCooldown = 0.25 + ratio * 0.35;
+    game.weaponRecoil = Math.min(1.4, (game.weaponRecoil || 0) + 1.1);
+    game.sound?.shootCharged(ratio);
+
+    game.camera.getWorldDirection(game.rayDir);
+    game.rayDir.normalize();
+
+    const size = 0.18 + ratio * 0.26;
+    const speed = 55 - ratio * 10;
+    const damage = 44 + Math.round(ratio * 56);
+    const life = 2.6;
+    const color = ratio > 0.75 ? 0x86efac : 0x5eead4;
+
+    const bulletMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(size, 10, 10),
+      new THREE.MeshBasicMaterial({ color }),
+    );
+    const muzzlePos = game.getWeaponMuzzleWorldPosition();
+    bulletMesh.position.copy(muzzlePos);
+    game.scene.add(bulletMesh);
+
+    game.bullets.push({
+      mesh: bulletMesh,
+      vx: game.rayDir.x * speed,
+      vy: game.rayDir.y * speed,
+      vz: game.rayDir.z * speed,
+      life,
+      dmg: damage,
+      authoritativeHit: true,
+    });
+
+    game.netClient?.sendShoot({
+      x: bulletMesh.position.x,
+      y: bulletMesh.position.y,
+      z: bulletMesh.position.z,
+      dx: game.rayDir.x,
+      dy: game.rayDir.y,
+      dz: game.rayDir.z,
+      speed,
+      life,
+      size,
+      color,
+    });
+
+    if (game.player.ammo <= 0) game.player.startReload();
   }
 
   updateBullets(deltaTime, isJoinClient) {
@@ -139,6 +208,7 @@ export class CombatController {
           game.player.kills++;
           game.player.streak++;
           game.player.score += 100 + game.player.streak * 10;
+          game.sound?.enemyDown();
           if (wasGreen) this.spawnHealDrop(enemy.mesh.position.x, enemy.mesh.position.z);
         }
         break;
