@@ -250,7 +250,7 @@ export class Game {
                 model.scale.setScalar(s);
 
                 model.position.set(0.06, -0.02, 0.0);
-                model.rotation.set(0, 270, 0);
+                model.rotation.set(0, 30, 0);
                 model.traverse?.((n) => {
                     if (n.isMesh) {
                         n.castShadow = false;
@@ -270,7 +270,7 @@ export class Game {
                 () => {
                     const stlLoader = new STLLoader();
                     stlLoader.load(
-                        './assets/models/plasmapistol-full.stl',
+                        './assets/models/pistol-full.stl',
                         (geometry) => {
                             geometry.computeVertexNormals();
                             const stlMesh = new THREE.Mesh(
