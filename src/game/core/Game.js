@@ -249,7 +249,7 @@ export class Game {
                 const s = targetMax / maxDim;
                 model.scale.setScalar(s);
 
-                model.position.set(0.06, -0.02, 0.0);
+                model.position.set(0.06, -0.1, 0.0);
                 model.rotation.set(0, 30, 0);
                 model.traverse?.((n) => {
                     if (n.isMesh) {

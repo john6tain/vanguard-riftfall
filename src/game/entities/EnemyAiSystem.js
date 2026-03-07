@@ -7,6 +7,8 @@ export class EnemyAiSystem {
     this.debugPathLines = new Map();
     const params = new URLSearchParams(globalThis.location?.search || '');
     this.showPathDebug = params.get('debugPaths') === '1';
+    // Facing tweak for enemy model forward axis.
+    this.facingOffset = 0;
   }
 
   updateEnemies(deltaTime, enemies, player, camera, enemyShots, targetActors = null, netClient = null, pointHitsObstacle = null) {
@@ -33,8 +35,19 @@ export class EnemyAiSystem {
       this.updateEnemyAnimation(enemy, deltaTime, isMoving);
       this.applyContactDamage(enemy, distanceToPlayer, deltaTime, player, target.isLocal, target.id, netClient);
 
-      // Face chosen target and only shoot that same facing target.
-      enemy.mesh.lookAt(target.x, enemy.mesh.position.y, target.z);
+      // Face movement direction to avoid visual "running backwards" when pathfinding steers.
+      const face = (dx, dz) => {
+        if (!Number.isFinite(dx) || !Number.isFinite(dz)) return;
+        const len = Math.hypot(dx, dz);
+        if (len < 0.0001) return;
+        enemy.mesh.rotation.y = Math.atan2(dx, dz) + this.facingOffset;
+      };
+
+      if (isMoving && enemy._lastMoveDir) {
+        face(enemy._lastMoveDir.x, enemy._lastMoveDir.z);
+      } else {
+        face(target.x - enemy.mesh.position.x, target.z - enemy.mesh.position.z);
+      }
       enemy.shootCooldownRemaining -= deltaTime;
       if (distanceToPlayer < 55 && enemy.shootCooldownRemaining <= 0) {
         if (target.isLocal) {
@@ -217,6 +230,7 @@ export class EnemyAiSystem {
 
     enemy.mesh.position.x += best.rx * step;
     enemy.mesh.position.z += best.rz * step;
+    enemy._lastMoveDir = { x: best.rx, z: best.rz };
     this.collision.resolveXZ(enemy.mesh.position, radius);
   }
 

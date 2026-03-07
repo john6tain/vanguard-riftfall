@@ -4,6 +4,43 @@ import { dist2 } from '../../shared/math.js';
 export class CombatController {
   constructor(game) {
     this.game = game;
+    this._raycaster = new THREE.Raycaster();
+    this._tmpVecA = new THREE.Vector3();
+    this._tmpVecB = new THREE.Vector3();
+  }
+
+  getAimTargetPoint(maxDistance = 220) {
+    const game = this.game;
+    const origin = game.camera.position;
+    const dir = this._tmpVecA;
+    game.camera.getWorldDirection(dir);
+
+    // Raycast against enemies + map obstacles so crosshair hit point is authoritative.
+    const enemyMeshes = game.enemyManager.enemies.map((e) => e.mesh).filter(Boolean);
+    const colliders = [...enemyMeshes, ...(game.obstacles || [])];
+
+    this._raycaster.set(origin, dir);
+    this._raycaster.far = maxDistance;
+    const hits = this._raycaster.intersectObjects(colliders, true);
+    if (hits.length) return hits[0].point.clone();
+
+    return origin.clone().add(dir.multiplyScalar(maxDistance));
+  }
+
+  getShotDirectionFromMuzzle(muzzlePos, spread = 0) {
+    const game = this.game;
+    const target = this.getAimTargetPoint();
+    const dir = this._tmpVecB.copy(target).sub(muzzlePos).normalize();
+
+    if (spread > 0) {
+      dir.x += (Math.random() - 0.5) * spread;
+      dir.y += (Math.random() - 0.5) * spread * 0.7;
+      dir.z += (Math.random() - 0.5) * spread;
+      dir.normalize();
+    }
+
+    game.rayDir.copy(dir);
+    return game.rayDir;
   }
 
   spawnHealDrop(x, z) {
@@ -39,18 +76,13 @@ export class CombatController {
     game.sound?.shoot();
     if (game.player.ammo <= 0) game.player.startReload();
 
-    game.camera.getWorldDirection(game.rayDir);
-    const spread = 0.012 + Math.min(0.03, Math.max(0, game.player.fireCooldown) * 0.35);
-    game.rayDir.x += (Math.random() - 0.5) * spread;
-    game.rayDir.y += (Math.random() - 0.5) * spread * 0.7;
-    game.rayDir.z += (Math.random() - 0.5) * spread;
-    game.rayDir.normalize();
-
     const bulletMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.12, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0xff8a00 }),
     );
     const muzzlePos = game.getWeaponMuzzleWorldPosition();
+    const spread = 0.012 + Math.min(0.03, Math.max(0, game.player.fireCooldown) * 0.35);
+    this.getShotDirectionFromMuzzle(muzzlePos, spread);
     bulletMesh.position.copy(muzzlePos);
 
     game.scene.add(bulletMesh);
@@ -95,9 +127,6 @@ export class CombatController {
     game.weaponRecoil = Math.min(1.4, (game.weaponRecoil || 0) + 1.1);
     game.sound?.shootCharged(ratio);
 
-    game.camera.getWorldDirection(game.rayDir);
-    game.rayDir.normalize();
-
     const size = 0.18 + ratio * 0.26;
     const speed = 55 - ratio * 10;
     const damage = 44 + Math.round(ratio * 56);
@@ -109,6 +138,7 @@ export class CombatController {
       new THREE.MeshBasicMaterial({ color }),
     );
     const muzzlePos = game.getWeaponMuzzleWorldPosition();
+    this.getShotDirectionFromMuzzle(muzzlePos, 0);
     bulletMesh.position.copy(muzzlePos);
     game.scene.add(bulletMesh);
 
